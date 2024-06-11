@@ -1,9 +1,14 @@
 version = 1
 
-test_patterns = ["**/*_test.go"]
+test_patterns = [
+  "**/*_test.go"
+]
 
 [[analyzers]]
 name = "go"
 
   [analyzers.meta]
-  import_root = "github.com/lucmq/go-shelve"
+  import_root = "github.com/lucmq/go-shelve-tmp"
+
+[[analyzers]]
+name = "test-coverage"
