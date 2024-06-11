@@ -54,10 +54,10 @@ func main() {
 	shelf.Put("module", "go-shelve")
 
 	// Note: Saved values will be available between restarts
-	value, _ := shelf.Get("language")
-	fmt.Println(value)
+	value, ok, _ := shelf.Get("language")
+	fmt.Println(value, ok)
 	
-	// Output: Go
+	// Output: Go true
 }
 ```
 
@@ -106,10 +106,10 @@ func main() {
 	shelf.Put("language", "Go")
 	shelf.Put("module", "go-shelve")
 
-	value, _ := shelf.Get("language")
-	fmt.Println(value)
+	value, ok, _ := shelf.Get("language")
+	fmt.Println(value, ok)
 
-	// Output: Go 
+	// Output: Go true
 }
 ```
 
