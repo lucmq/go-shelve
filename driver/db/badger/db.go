@@ -7,13 +7,17 @@ import (
 	"slices"
 
 	"github.com/dgraph-io/badger/v3"
+	"github.com/lucmq/go-shelve/shelve"
 )
 
-// Store is a BadgerDB driver for go-shelve/Shelf.
+// Store is a BadgerDB driver for [shelve.Shelf].
 type Store struct {
 	db        *badger.DB
 	valueCopy copyFunc
 }
+
+// Assert Store implements shelve.DB
+var _ shelve.DB = (*Store)(nil)
 
 type copyFunc func(item *badger.Item, dest []byte) ([]byte, error)
 
