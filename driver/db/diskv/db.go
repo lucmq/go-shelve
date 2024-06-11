@@ -91,7 +91,7 @@ func newBTreeIndex() *diskv.BTreeIndex {
 }
 
 // Close closes the underlying diskv.Diskv instance. In diskv, this is a no-op.
-func (s *Store) Close() error {
+func (*Store) Close() error {
 	return nil
 }
 
@@ -126,7 +126,7 @@ func (s *Store) Len() int64 {
 
 // Sync synchronizes the underlying diskv database to persistent storage. In
 // diskv, this is a no-op.
-func (s *Store) Sync() error {
+func (*Store) Sync() error {
 	return nil
 }
 
