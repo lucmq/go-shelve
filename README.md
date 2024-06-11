@@ -80,15 +80,15 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/lucmq/go-shelve/shelve"
-	boltd "github.com/lucmq/go-shelve/driver/db/bbolt"
+	bboltd "github.com/lucmq/go-shelve/driver/db/bbolt"
 	"github.com/lucmq/go-shelve/driver/encoding/msgpack"
+	"github.com/lucmq/go-shelve/shelve"
 )
 
 func main() {
-	path := filepath.Join(os.TempDir(), "go-shelve")
+	path := filepath.Join(os.TempDir(), "bolt-example")
 
-	db, _ := bboltd.NewDefault(path, "example-bucket")
+	db, _ := bboltd.NewDefault(path, []byte("example-bucket"))
 	codec := msgpack.NewDefault()
 
 	// Open the shelf with custom options
