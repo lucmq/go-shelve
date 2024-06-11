@@ -126,10 +126,10 @@ func TestShelf_Open(t *testing.T) {
 		path := TestDirectory
 		shelf, err := Open[string, int](path)
 		if err != nil {
-			t.Errorf("Error opening shelf: %v", err)
+			t.Fatalf("Error opening shelf: %v", err)
 		}
 		if shelf == nil {
-			t.Errorf("Expected shelf to be non-nil")
+			t.Fatalf("Expected shelf to be non-nil")
 		}
 		if shelf.db == nil {
 			t.Errorf("Expected shelf.db to be non-nil")
@@ -148,10 +148,10 @@ func TestShelf_Open(t *testing.T) {
 			WithCodec(customCodec),
 		)
 		if err != nil {
-			t.Errorf("Error opening shelf: %v", err)
+			t.Fatalf("Error opening shelf: %v", err)
 		}
 		if shelf == nil {
-			t.Errorf("Expected shelf to be non-nil")
+			t.Fatalf("Expected shelf to be non-nil")
 		}
 		if shelf.db != customDB {
 			t.Errorf("Expected shelf.db to be customDB")
@@ -165,10 +165,10 @@ func TestShelf_Open(t *testing.T) {
 		// Keep the path empty to trigger an error
 		shelf, err := Open[string, int]("")
 		if err == nil {
-			t.Errorf("Expected error opening database, but got nil")
+			t.Fatalf("Expected error opening database, but got nil")
 		}
 		if shelf != nil {
-			t.Errorf("Expected shelf to be nil")
+			t.Fatalf("Expected shelf to be nil")
 		}
 	})
 }
