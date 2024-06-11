@@ -1,5 +1,9 @@
 github.com/davecgh/go-spew v1.1.0 h1:ZDRjVQ15GmhC3fiQ8ni8+OwkZQO4DARzQgrnXU1Liz8=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
+github.com/lucmq/go-shelve v1.0.0 h1:J6xicPzEu3kKWEW+vvQuIsEokD4QNm8+GV2oL3vpygk=
+github.com/lucmq/go-shelve v1.0.0/go.mod h1:WWglwy36cb6Bm+HOFl3B+A8ERypSU4TQC5er46Px4eY=
+github.com/lucmq/go-shelve/driver v0.0.0-20240611142727-5b476bfa7087 h1:Iknq4xo2WEXKEHkYjbFHJVXPIEDjoKcM/PnZJgNiSF4=
+github.com/lucmq/go-shelve/driver v0.0.0-20240611142727-5b476bfa7087/go.mod h1:l0BCjGcNA9Qd+SmeO+4sDiLLCYXfJyM1Q3cwC0xEvX0=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/stretchr/testify v1.6.1 h1:hDPOHmpOpP40lSULcqw7IrRb/u7w6RpDC9399XyoNd0=

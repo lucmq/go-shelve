@@ -1,4 +1,8 @@
 github.com/boltdb/bolt v1.3.1 h1:JQmyP4ZBrce+ZQu0dY660FMfatumYDLun9hBCUVIkF4=
 github.com/boltdb/bolt v1.3.1/go.mod h1:clJnj/oiGkjum5o1McbSZDSLxVThjynRyGBgiAx27Ps=
+github.com/lucmq/go-shelve v1.0.0 h1:J6xicPzEu3kKWEW+vvQuIsEokD4QNm8+GV2oL3vpygk=
+github.com/lucmq/go-shelve v1.0.0/go.mod h1:WWglwy36cb6Bm+HOFl3B+A8ERypSU4TQC5er46Px4eY=
+github.com/lucmq/go-shelve/driver v0.0.0-20240611142727-5b476bfa7087 h1:Iknq4xo2WEXKEHkYjbFHJVXPIEDjoKcM/PnZJgNiSF4=
+github.com/lucmq/go-shelve/driver v0.0.0-20240611142727-5b476bfa7087/go.mod h1:l0BCjGcNA9Qd+SmeO+4sDiLLCYXfJyM1Q3cwC0xEvX0=
 golang.org/x/sys v0.20.0 h1:Od9JTbYCk261bKm4M/mw7AklTlFYIa0bIp9BgSm1S8Y=
 golang.org/x/sys v0.20.0/go.mod h1:/VUhepiaJMQUp4+oa/7Zr1D23ma6VTLIYjOOTFZPUcA=

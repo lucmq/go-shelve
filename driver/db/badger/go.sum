@@ -49,6 +49,10 @@ github.com/klauspost/compress v1.12.3/go.mod h1:8dP1Hq4DHOhN9w426knH3Rhby4rFm6D8
 github.com/kr/pretty v0.1.0/go.mod h1:dAy3ld7l9f0ibDNOQOHHMYYIIbhfbHSm3C4ZsoJORNo=
 github.com/kr/pty v1.1.1/go.mod h1:pFQYn66WHrOpPYNljwOMqo10TkYh1fy3cYio2l3bCsQ=
 github.com/kr/text v0.1.0/go.mod h1:4Jbv+DJW3UT/LiOwJeYQe1efqtUx/iVham/4vfdArNI=
+github.com/lucmq/go-shelve v1.0.0 h1:J6xicPzEu3kKWEW+vvQuIsEokD4QNm8+GV2oL3vpygk=
+github.com/lucmq/go-shelve v1.0.0/go.mod h1:WWglwy36cb6Bm+HOFl3B+A8ERypSU4TQC5er46Px4eY=
+github.com/lucmq/go-shelve/driver v0.0.0-20240611142727-5b476bfa7087 h1:Iknq4xo2WEXKEHkYjbFHJVXPIEDjoKcM/PnZJgNiSF4=
+github.com/lucmq/go-shelve/driver v0.0.0-20240611142727-5b476bfa7087/go.mod h1:l0BCjGcNA9Qd+SmeO+4sDiLLCYXfJyM1Q3cwC0xEvX0=
 github.com/magiconair/properties v1.8.0/go.mod h1:PppfXfuXeibc/6YijjN8zIbojt8czPbwD3XqdrwzmxQ=
 github.com/mitchellh/go-homedir v1.1.0/go.mod h1:SfyaCUpYCn1Vlf4IUYiD9fPX4A5wJrkLzIz1N1q0pr0=
 github.com/mitchellh/mapstructure v1.1.2/go.mod h1:FVVH3fgwuzCH5S8UJGiWEs2h04kUh9fWfEaFds41c1Y=
