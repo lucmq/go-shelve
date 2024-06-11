@@ -5,14 +5,18 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/lucmq/go-shelve/shelve"
 	"go.etcd.io/bbolt"
 )
 
-// Store is a BoltDB driver for go-shelve/Shelf.
+// Store is a BoltDB driver for [shelve.Shelf].
 type Store struct {
 	db     *bbolt.DB
 	bucket []byte
 }
+
+// Assert Store implements shelve.DB
+var _ shelve.DB = (*Store)(nil)
 
 // New creates a new BoltDB store. The bucket is created if it doesn't exist.
 func New(db *bbolt.DB, bucket []byte) (*Store, error) {

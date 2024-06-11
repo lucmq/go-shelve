@@ -47,7 +47,7 @@ type IndexLen interface {
 	Len() int
 }
 
-// Store is a shelve.DB driver backed by a diskv.Diskv instance.
+// Store is a [shelve.DB] driver backed by a diskv.Diskv instance.
 type Store struct {
 	db *diskv.Diskv
 

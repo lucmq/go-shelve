@@ -4,10 +4,10 @@ codecs, meant to be used as part of the go-shelve project.
 
 ### Databases:
 #### Supported:
-- Bolt
-- BBolt
-- Badger
-- Diskv
+- [Bolt](https://pkg.go.dev/github.com/lucmq/go-shelve/driver/db/bolt)
+- [BBolt](https://pkg.go.dev/github.com/lucmq/go-shelve/driver/db/bboltd)
+- [Badger](https://pkg.go.dev/github.com/lucmq/go-shelve/driver/db/badger)
+- [Diskv](https://pkg.go.dev/github.com/lucmq/go-shelve/driver/db/diskv)
 
 #### Beta:
 - None
@@ -19,7 +19,7 @@ codecs, meant to be used as part of the go-shelve project.
 
 ### Codecs:
 #### Supported:
-- MessagePack
+- [MessagePack](https://pkg.go.dev/github.com/lucmq/go-shelve/driver/encoding/msgpack)
 
 ### Beta
 - None

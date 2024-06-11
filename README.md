@@ -23,7 +23,7 @@ go get github.com/lucmq/go-shelve
 ```
 
 ## Usage
-Here are some basic examples of how to use `go-shelve`:
+Here are some examples of how to use `go-shelve`:
 
 ### Basic
 The following example illustrates the usage of a `Shelf` with string keys and
@@ -56,7 +56,7 @@ func main() {
 
 	// Use the database
 	shelf.Put("language", "Go")
-	shelf.Put("module", "go-shelve")
+	shelf.Put("module", "Go-Shelve")
 
 	// Note: Saved values will be available between restarts
 	value, ok, _ := shelf.Get("language")
@@ -109,7 +109,7 @@ func main() {
 
 	// Use the database
 	shelf.Put("language", "Go")
-	shelf.Put("module", "go-shelve")
+	shelf.Put("module", "Go-Shelve")
 
 	value, ok, _ := shelf.Get("language")
 	fmt.Println(value, ok)

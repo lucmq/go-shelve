@@ -7,7 +7,7 @@ import (
 	"github.com/lucmq/go-shelve/shelve"
 )
 
-// Codec is a codec for msgpack. Codec implements the shelve.Codec interface.
+// Codec is a [shelve.Codec] driver for msgpack.
 type Codec struct{}
 
 // Assert Codec implements shelve.Codec
@@ -18,7 +18,7 @@ func NewDefault() *Codec {
 	return &Codec{}
 }
 
-// Encode returns the msgpack Codec encoding of v as a byte slice.
+// Encode returns the msgpack encoding of v as a byte slice.
 func (e *Codec) Encode(value any) ([]byte, error) {
 	return msgpack.Marshal(value)
 }
