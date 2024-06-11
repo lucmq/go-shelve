@@ -1,4 +1,8 @@
 # Go-Shelve
+[![Go Reference](https://pkg.go.dev/badge/github.com/lucmq/go-shelve/shelve.svg)](https://pkg.go.dev/github.com/lucmq/go-shelve/shelve)
+[![Go Report Card](https://goreportcard.com/badge/github.com/lucmq/go-shelve)](https://goreportcard.com/report/github.com/lucmq/go-shelve)
+[![DeepSource](https://app.deepsource.com/gh/lucmq/go-shelve.svg/?label=active+issues&show_trend=false&token=iZaN7kSfuZGm1KppBKaqMHME)](https://app.deepsource.com/gh/lucmq/go-shelve/)
+
 Go-Shelve is a dependencies-free Go package that provides a persistent, map-like
 object called `Shelf`. It lets you store and retrieve Go objects directly, with
 the serialization and storage handled automatically by the `Shelf`. Additionally,

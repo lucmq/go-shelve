@@ -82,7 +82,7 @@ func TestOpen_WithOptions(t *testing.T) {
 	}
 }
 
-// Tests for miscelaneous boundary cases.
+// Tests for miscellaneous boundary cases.
 func TestDB_Error(t *testing.T) {
 	t.Run("Put - key exceeds maximum length", func(t *testing.T) {
 		db, err := OpenTestDB()
