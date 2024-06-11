@@ -11,7 +11,10 @@ import (
 
 func BenchmarkShelf_Get_SDB_Msgpack(b *testing.B) {
 	path := filepath.Join(os.TempDir(), "go-shelve")
-	os.RemoveAll(path)
+	err := os.RemoveAll(path)
+	if err != nil {
+		b.Fatalf("remove db: %s", err)
+	}
 
 	s, err := shelve.Open[uint64, *Product](
 		path,
