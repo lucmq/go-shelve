@@ -29,5 +29,12 @@ jobs:
       - name: Test
         run: go test -v ./...
 
+      - name: Test Coverage
+        uses: deepsourcelabs/test-coverage-action@master
+        with:
+          key: go
+          coverage-file: cover.out
+          dsn: ${{ secrets.DEEPSOURCE_DSN }}
+
       - name: Update coverage report
         uses: ncruces/go-coverage-report@main
