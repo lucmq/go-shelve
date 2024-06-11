@@ -5,8 +5,8 @@ import (
 	"os"
 	"path/filepath"
 
+	diskvd "github.com/lucmq/go-shelve/driver/db/diskv"
 	"github.com/lucmq/go-shelve/shelve"
-	diskvd "go-shelve/driver/db/diskv"
 )
 
 var StoragePath = filepath.Join(os.TempDir(), "game-test", "db")

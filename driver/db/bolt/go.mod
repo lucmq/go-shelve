@@ -1,4 +1,4 @@
-module go-shelve/driver/db/bolt
+module github.com/lucmq/go-shelve/driver/db/bolt
 
 go 1.22
 

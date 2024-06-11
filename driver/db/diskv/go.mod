@@ -1,4 +1,4 @@
-module go-shelve/driver/db/diskv
+module github.com/lucmq/go-shelve/driver/db/diskv
 
 go 1.22
 
