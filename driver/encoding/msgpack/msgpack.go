@@ -3,7 +3,8 @@ package msgpack
 
 import (
 	"github.com/vmihailenco/msgpack/v5"
-	"go-shelve/shelve"
+
+	"github.com/lucmq/go-shelve/shelve"
 )
 
 // Codec is a codec for msgpack. Codec implements the shelve.Codec interface.

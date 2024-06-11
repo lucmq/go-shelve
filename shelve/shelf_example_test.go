@@ -2,12 +2,13 @@ package shelve_test
 
 import (
 	"fmt"
-	"go-shelve/sdb"
 	"log"
 	"os"
 	"path/filepath"
 
-	"go-shelve/shelve"
+	"github.com/lucmq/go-shelve/sdb"
+
+	"github.com/lucmq/go-shelve/shelve"
 )
 
 func ExampleOpen() {

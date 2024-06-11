@@ -81,7 +81,7 @@ import (
 	"path/filepath"
 
 	"github.com/lucmq/go-shelve/shelve"
-	"github.com/lucmq/go-shelve/driver/db/bbolt"
+	boltd "github.com/lucmq/go-shelve/driver/db/bbolt"
 	"github.com/lucmq/go-shelve/driver/encoding/msgpack"
 )
 
@@ -133,8 +133,8 @@ import (
 	"os"
 	"path/filepath"
 
-	diskvd "go-shelve/driver/db/diskv"
-	"go-shelve/shelve"
+	diskvd "github.com/lucmq/go-shelve/driver/db/diskv"
+	"github.com/lucmq/go-shelve/shelve"
 )
 
 var StoragePath = filepath.Join(os.TempDir(), "game-test", "db")

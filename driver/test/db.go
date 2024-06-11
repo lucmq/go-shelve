@@ -2,7 +2,8 @@ package shelvetest
 
 import (
 	"errors"
-	"go-shelve/shelve"
+
+	"github.com/lucmq/go-shelve/shelve"
 )
 
 var TestError = errors.New("test error")

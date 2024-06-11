@@ -69,11 +69,12 @@ import (
 	"encoding/base32"
 	"errors"
 	"fmt"
-	"go-shelve/sdb/internal"
 	"os"
 	"path/filepath"
 	"sync"
 	"time"
+
+	"github.com/lucmq/go-shelve/sdb/internal"
 )
 
 const (

@@ -2,10 +2,11 @@ package diskvd_test
 
 import (
 	"fmt"
-	diskvd "go-shelve/driver/db/diskv"
-	"go-shelve/shelve"
 	"os"
 	"path/filepath"
+
+	"github.com/lucmq/go-shelve/shelve"
+	diskvd "go-shelve/driver/db/diskv"
 )
 
 var StoragePath = filepath.Join(os.TempDir(), "game-test", "db")

@@ -1,7 +1,7 @@
-module go-shelve/driver
+module github.com/lucmq/go-shelve/driver
 
 go 1.22
 
-replace go-shelve => ..
+replace github.com/lucmq/go-shelve => ..
 
-require go-shelve v0.0.0-00010101000000-000000000000
+require github.com/lucmq/go-shelve v0.0.0-00010101000000-000000000000

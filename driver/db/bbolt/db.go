@@ -3,8 +3,9 @@ package bboltd
 
 import (
 	"fmt"
-	"go.etcd.io/bbolt"
 	"os"
+
+	"go.etcd.io/bbolt"
 )
 
 // Store is a BoltDB driver for go-shelve/Shelf.

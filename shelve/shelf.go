@@ -17,7 +17,8 @@ package shelve
 
 import (
 	"fmt"
-	"go-shelve/sdb"
+
+	"github.com/lucmq/go-shelve/sdb"
 )
 
 const (

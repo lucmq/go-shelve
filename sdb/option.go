@@ -1,6 +1,6 @@
 package sdb
 
-import "go-shelve/sdb/internal"
+import "github.com/lucmq/go-shelve/sdb/internal"
 
 // Option is passed to the Open function to create a customized DB.
 type Option func(*DB)

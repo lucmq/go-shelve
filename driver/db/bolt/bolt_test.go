@@ -1,11 +1,12 @@
 package boltd
 
 import (
-	shelvetest "go-shelve/driver/test"
-	"go-shelve/shelve"
 	"os"
 	"path/filepath"
 	"testing"
+
+	shelvetest "github.com/lucmq/go-shelve/driver/test"
+	"github.com/lucmq/go-shelve/shelve"
 )
 
 var (

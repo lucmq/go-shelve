@@ -2,12 +2,14 @@ package badgerd
 
 import (
 	"errors"
-	"github.com/dgraph-io/badger/v3"
-	shelvetest "go-shelve/driver/test"
-	"go-shelve/shelve"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/dgraph-io/badger/v3"
+
+	shelvetest "github.com/lucmq/go-shelve/driver/test"
+	"github.com/lucmq/go-shelve/shelve"
 )
 
 var dbPath = filepath.Join(os.TempDir(), "badger-test")

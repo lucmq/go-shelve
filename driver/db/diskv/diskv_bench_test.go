@@ -2,10 +2,11 @@ package diskvd
 
 import (
 	"fmt"
-	"github.com/peterbourgon/diskv/v3"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/peterbourgon/diskv/v3"
 )
 
 func CreateBenchDiskvDB(b *testing.B) *diskv.Diskv {

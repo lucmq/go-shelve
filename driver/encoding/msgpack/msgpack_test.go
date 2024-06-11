@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"encoding/gob"
 	"fmt"
-	"github.com/vmihailenco/msgpack/v5"
-	shelvetest "go-shelve/driver/test"
 	"log"
 	"testing"
+
+	"github.com/vmihailenco/msgpack/v5"
+
+	shelvetest "github.com/lucmq/go-shelve/driver/test"
 )
 
 type Product struct {

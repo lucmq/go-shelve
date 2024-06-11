@@ -1,7 +1,7 @@
 package shelvetest
 
 import (
-	"go-shelve/shelve"
+	"github.com/lucmq/go-shelve/shelve"
 )
 
 // Codec is an interface for encoding and decoding. It is an alias for the

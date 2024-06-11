@@ -2,11 +2,12 @@ package msgpack
 
 import (
 	"fmt"
-	"go-shelve/shelve"
 	"math/rand/v2"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/lucmq/go-shelve/shelve"
 )
 
 func BenchmarkShelf_Get_SDB_Msgpack(b *testing.B) {

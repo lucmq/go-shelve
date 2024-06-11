@@ -2,8 +2,9 @@ package badgerd
 
 import (
 	"fmt"
-	shelvetest "go-shelve/driver/test"
 	"testing"
+
+	shelvetest "github.com/lucmq/go-shelve/driver/test"
 )
 
 func BenchmarkStore_Items(b *testing.B) {

@@ -3,10 +3,11 @@ package sdb_test
 import (
 	"bytes"
 	"encoding/gob"
-	"go-shelve/sdb"
 	"log"
 	"os"
 	"path/filepath"
+
+	"github.com/lucmq/go-shelve/sdb"
 )
 
 func Example() {

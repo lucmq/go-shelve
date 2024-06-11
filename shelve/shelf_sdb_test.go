@@ -1,13 +1,14 @@
 package shelve
 
 import (
-	"go-shelve/sdb"
 	"math/rand"
 	"os"
 	"reflect"
 	"slices"
 	"testing"
 	"time"
+
+	"github.com/lucmq/go-shelve/sdb"
 )
 
 type TestStruct struct {

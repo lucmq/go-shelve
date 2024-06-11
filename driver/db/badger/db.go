@@ -4,8 +4,9 @@ package badgerd
 import (
 	"errors"
 	"fmt"
-	"github.com/dgraph-io/badger/v3"
 	"slices"
+
+	"github.com/dgraph-io/badger/v3"
 )
 
 // Store is a BadgerDB driver for go-shelve/Shelf.

@@ -3,8 +3,9 @@ package boltd
 
 import (
 	"fmt"
-	"github.com/boltdb/bolt"
 	"os"
+
+	"github.com/boltdb/bolt"
 )
 
 // Store is a BoltDB driver for go-shelve/Shelf.

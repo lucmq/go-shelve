@@ -4,14 +4,16 @@ package diskvd
 import (
 	"errors"
 	"fmt"
-	"github.com/google/btree"
-	"github.com/peterbourgon/diskv/v3"
-	"go-shelve/shelve"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
+
+	"github.com/google/btree"
+	"github.com/peterbourgon/diskv/v3"
+
+	"github.com/lucmq/go-shelve/shelve"
 )
 
 var (

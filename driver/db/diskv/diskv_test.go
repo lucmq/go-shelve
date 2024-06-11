@@ -2,13 +2,15 @@ package diskvd
 
 import (
 	"errors"
-	"github.com/peterbourgon/diskv/v3"
-	shelvetest "go-shelve/driver/test"
-	"go-shelve/shelve"
 	"os"
 	"path/filepath"
 	"reflect"
 	"testing"
+
+	"github.com/peterbourgon/diskv/v3"
+
+	shelvetest "github.com/lucmq/go-shelve/driver/test"
+	"github.com/lucmq/go-shelve/shelve"
 )
 
 var (
