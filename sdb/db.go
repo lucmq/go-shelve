@@ -374,11 +374,11 @@ func parseKey(path string) ([]byte, error) {
 // The I/O done by this function should be amortized between many mutations.
 func prepareForMutation(db *DB) error {
 	ok := db.mu.TryLock()
-	defer db.mu.Unlock()
-
 	if !ok {
 		return nil
 	}
+	defer db.mu.Unlock()
+
 	if db.metadata.Generation != db.metadata.Checkpoint {
 		// Already drifted
 		return nil
