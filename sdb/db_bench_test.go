@@ -2,6 +2,7 @@ package sdb
 
 import (
 	"fmt"
+	"sync"
 	"testing"
 )
 
@@ -70,6 +71,52 @@ func BenchmarkDB_Put(b *testing.B) {
 			)
 		})
 	}
+}
+
+func BenchmarkDB_Put_Concurrent(b *testing.B) {
+	// Generate 1M entries
+	N := 1000000
+	items := make([][2][]byte, N)
+	for i := 0; i < N; i++ {
+		items[i] = [2][]byte{
+			[]byte(fmt.Sprintf("key-%d", i)),
+			[]byte(fmt.Sprintf("value-%d", i)),
+		}
+	}
+
+	C := 100
+	b.Run(fmt.Sprintf("Put-%d", C), func(b *testing.B) {
+		db := OpenBenchDB(b)
+		defer db.Close()
+
+		inserted := 0
+
+		wg := &sync.WaitGroup{}
+		ch := make(chan int, C)
+
+		b.ReportAllocs()
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			ch <- 1
+			go func(i int) {
+				wg.Add(1)
+				defer wg.Done()
+				defer func() { <-ch }()
+				err := db.Put(items[i%N][0], items[i%N][1])
+				if err != nil {
+					b.Fatalf("put: %s", err)
+				}
+			}(i)
+			inserted++
+		}
+		wg.Wait()
+
+		b.Logf(
+			"Insert: %d (%d items/s)",
+			inserted,
+			int(float64(inserted)/b.Elapsed().Seconds()),
+		)
+	})
 }
 
 func BenchmarkDB_Get(b *testing.B) {

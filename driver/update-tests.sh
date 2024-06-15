@@ -9,7 +9,7 @@
 # #############################################################################
 
 # Copy the DB test suite file
-cp ../sdb/v1/db_main_test.go ./test/db_main.go
+cp ../sdb/db_main_test.go ./test/db_main.go
 
 # Copy the Codec test suite file
 cp ../shelve/codec_main_test.go ./test/codec_main.go

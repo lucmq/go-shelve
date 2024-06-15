@@ -4,6 +4,7 @@ import (
 	"errors"
 	"reflect"
 	"strconv"
+	"sync"
 	"testing"
 )
 
@@ -264,6 +265,35 @@ func (T *DBTests) TestPut(t *testing.T) {
 		// Assert
 		checkDatabase(t, db, seed)
 	})
+
+	t.Run("Put concurrent", func(t *testing.T) {
+		// Arrange
+		seed := make(map[string]string)
+		for i := 0; i < 100; i++ {
+			key := []byte("key-" + strconv.Itoa(i))
+			value := []byte("value-" + strconv.Itoa(i))
+			seed[string(key)] = string(value)
+		}
+		db := StartDatabase(t, T.Open, nil)
+
+		// Act
+		var wg sync.WaitGroup
+		for k, v := range seed {
+			key, value := k, v // Capture
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				err := db.Put([]byte(key), []byte(value))
+				if err != nil {
+					t.Errorf("Expected no error, but got %v", err)
+				}
+			}()
+		}
+		wg.Wait()
+
+		// Assert
+		checkDatabase(t, db, seed)
+	})
 }
 
 func (T *DBTests) TestDelete(t *testing.T) {
@@ -300,6 +330,55 @@ func (T *DBTests) TestDelete(t *testing.T) {
 
 		// Assert
 		checkDatabase(t, db, seed)
+	})
+
+	t.Run("Delete many", func(t *testing.T) {
+		// Arrange
+		seed := make(map[string]string)
+		for i := 0; i < 100; i++ {
+			key := []byte("key-" + strconv.Itoa(i))
+			value := []byte("value-" + strconv.Itoa(i))
+			seed[string(key)] = string(value)
+		}
+		db := StartDatabase(t, T.Open, seed)
+
+		// Act
+		for key, _ := range seed {
+			if err := db.Delete([]byte(key)); err != nil {
+				t.Errorf("Expected no error, but got %v", err)
+			}
+		}
+
+		// Assert
+		checkDatabase(t, db, nil)
+	})
+
+	t.Run("Delete concurrent", func(t *testing.T) {
+		// Arrange
+		seed := make(map[string]string)
+		for i := 0; i < 100; i++ {
+			key := []byte("key-" + strconv.Itoa(i))
+			value := []byte("value-" + strconv.Itoa(i))
+			seed[string(key)] = string(value)
+		}
+		db := StartDatabase(t, T.Open, seed)
+
+		// Act
+		var wg sync.WaitGroup
+		for k, _ := range seed {
+			key := k // Capture
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				if err := db.Delete([]byte(key)); err != nil {
+					t.Errorf("Expected no error, but got %v", err)
+				}
+			}()
+		}
+		wg.Wait()
+
+		// Assert
+		checkDatabase(t, db, nil)
 	})
 }
 
