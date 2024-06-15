@@ -98,7 +98,7 @@ func BenchmarkDB_Put_Concurrent(b *testing.B) {
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
 			ch <- 1
-			go func() {
+			go func(i int) {
 				wg.Add(1)
 				defer wg.Done()
 				defer func() { <-ch }()
@@ -106,7 +106,7 @@ func BenchmarkDB_Put_Concurrent(b *testing.B) {
 				if err != nil {
 					b.Fatalf("put: %s", err)
 				}
-			}()
+			}(i)
 			inserted++
 		}
 		wg.Wait()

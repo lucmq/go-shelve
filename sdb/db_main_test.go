@@ -278,7 +278,8 @@ func (T *DBTests) TestPut(t *testing.T) {
 
 		// Act
 		var wg sync.WaitGroup
-		for key, value := range seed {
+		for k, v := range seed {
+			key, value := k, v // Capture
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
@@ -364,7 +365,8 @@ func (T *DBTests) TestDelete(t *testing.T) {
 
 		// Act
 		var wg sync.WaitGroup
-		for key, _ := range seed {
+		for k, _ := range seed {
+			key := k // Capture
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
