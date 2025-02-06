@@ -1,6 +1,10 @@
 package sdb
 
-import "syscall"
+import (
+	"os"
+	"syscall"
+	"unsafe"
+)
 
 // The implementation bellow is adapted from: github.com/natefinch/atomic
 

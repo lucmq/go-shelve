@@ -83,13 +83,6 @@ func (w *atomicWriter) WriteFile(path string, data []byte, excl bool) error {
 	return renameFile(tmpPath, path)
 }
 
-// renameFile atomically replaces the destination file or directory with the
-// source. It is guaranteed to either replace the target file entirely, or not
-// change either file.
-func renameFile(oldpath, newpath string) error {
-	return os.Rename(oldpath, newpath)
-}
-
 // writeFile writes data to the named file, creating it if necessary.
 // If the file does not exist, WriteFile creates it with permissions perm (before umask);
 // otherwise writeFile truncates it before writing, without changing permissions.
