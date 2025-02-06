@@ -201,9 +201,21 @@ func TestDB_Init_FileError(t *testing.T) {
 		if err = os.RemoveAll(db.path); err != nil {
 			t.Errorf("Expected no error, but got %v", err)
 		}
-		if _, err = os.Create(db.path); err != nil {
+
+		// On Windows, a file must be closed before it can be removed.
+		// Attempting to remove an open file results in a "file in use" error.
+		file, err := os.Create(db.path)
+		if err != nil {
 			t.Errorf("Expected no error, but got %v", err)
 		}
+		if err := file.Close(); err != nil {
+			t.Fatalf("Expected no error, but got %v", err)
+		}
+		defer func() {
+			if err = os.Remove(db.path); err != nil {
+				t.Errorf("Expected no error, but got %v", err)
+			}
+		}()
 
 		// Act / Assert
 		_, err = ReopenTestDB()

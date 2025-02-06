@@ -65,12 +65,16 @@ func runAtomicWriterWriteFileTests(t *testing.T, writer *atomicWriter) {
 		path := filepath.Join(tmpDir, "test_file.txt")
 		data := []byte("Hello, world!")
 
-		// Create the file first.
-		err := os.WriteFile(path, []byte("Existing data"), defaultPermissions)
+		// On Windows, the os.O_EXCL flag does not work reliably with os.WriteFile.
+		// Instead, we create a new file without closing it because it will remain
+		// locked as long as it stays open.
+		f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, defaultPermissions)
 		if err != nil {
 			t.Fatalf("Failed to create existing file: %v", err)
 		}
+		_, err = f.Write([]byte("Existing data"))
 
+		// Attempt to write with exclusive mode enabled
 		err = writer.WriteFile(path, data, true)
 		if err == nil {
 			t.Errorf("Expected an error, but got nil")
