@@ -1,10 +1,10 @@
 module github.com/lucmq/go-shelve/driver/db/bbolt
 
-go 1.22
+go 1.22.0
 
 require (
-	github.com/lucmq/go-shelve v1.0.0
-	github.com/lucmq/go-shelve/driver v0.0.0-20240611142727-5b476bfa7087
+	github.com/lucmq/go-shelve v1.0.6-0.20250208170227-f7486f82fda5
+	github.com/lucmq/go-shelve/driver v0.0.0-20250208171239-8252170f05d1
 	go.etcd.io/bbolt v1.3.10
 )
 
