@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"fmt"
 	"strconv"
 	"testing"
 )
@@ -296,17 +297,62 @@ func TestPassThroughCache(t *testing.T) {
 // Benchmarks
 
 func BenchmarkRandomCache_Get(b *testing.B) {
-	c := newRandomCache[int](10000)
-	c.Put("1", 2)
-	for i := 0; i < b.N; i++ {
-		_, _ = c.Get("1")
+	benchmarks := []struct {
+		name string
+		size int
+	}{
+		{"Size 1", 1},
+		{"Size 10", 10},
+		{"Size 100", 100},
+		{"Size 1000", 1000},
+		{"Size 10000", 10000},
+		{"Size 100000", 100000},
+	}
+
+	for _, bm := range benchmarks {
+		b.Run(bm.name, func(b *testing.B) {
+			c := newRandomCache[int](bm.size)
+			keys := make([]string, bm.size)
+
+			for i := 0; i < bm.size; i++ {
+				keys[i] = fmt.Sprintf("%d", i)
+				c.Put(keys[i], i)
+			}
+
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				_, _ = c.Get(keys[i%bm.size])
+			}
+		})
 	}
 }
 
 func BenchmarkRandomCache_Put(b *testing.B) {
-	c := newRandomCache[int](10000)
-	for i := 0; i < b.N; i++ {
-		c.Put(strconv.Itoa(i), 2)
+	benchmarks := []struct {
+		name string
+		size int
+	}{
+		{"Size 1", 1},
+		{"Size 10", 10},
+		{"Size 100", 100},
+		{"Size 1000", 1000},
+		{"Size 10000", 10000},
+		{"Size 100000", 100000},
+	}
+
+	for _, bm := range benchmarks {
+		b.Run(bm.name, func(b *testing.B) {
+			c := newRandomCache[int](bm.size)
+			keys := make([]string, bm.size)
+
+			for i := 0; i < bm.size; i++ {
+				keys[i] = fmt.Sprint(i)
+			}
+
+			for i := 0; i < b.N; i++ {
+				c.Put(keys[i%bm.size], 42)
+			}
+		})
 	}
 }
 
