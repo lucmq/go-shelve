@@ -36,7 +36,7 @@ func ExampleOpen() {
 	// Output: Go true
 }
 
-func ExampleOpen_WithDatabase() {
+func ExampleOpen_withDatabase() {
 	path := filepath.Join(os.TempDir(), "go-shelve")
 
 	// Configure some options for the default go-shelf database. This
