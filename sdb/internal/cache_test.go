@@ -209,7 +209,7 @@ func TestRandomCache_Put(t *testing.T) {
 }
 
 func TestRandomCache_Delete(t *testing.T) {
-	t.Run("Empty Cache", func(t *testing.T) {
+	t.Run("Empty Cache", func(_ *testing.T) {
 		c := newRandomCache[int](10)
 		c.Delete("1")
 	})
