@@ -58,3 +58,37 @@ func moveFileEx(
 	}
 	return
 }
+
+// Max Open Files Limit
+
+func _setMaxOpenFiles(limit int) error {
+	// TODO: It seems that the correct approach on Windows is to bypass
+	//  os.Open() and use code as bellow:
+	//   Note: It might be simpler to support the file handle pool (fCache) only
+	//    on Unix or limit the size significantly to 512 or less (need to check
+	//    how much we can open in a single process).
+
+	_ = `
+	kernel32 := syscall.NewLazyDLL("kernel32.dll")
+	createFile := kernel32.NewProc("CreateFileW")
+
+	handle, _, _ := createFile.Call(
+		uintptr(unsafe.Pointer(fileName)), // File name
+		syscall.GENERIC_WRITE,             // Desired access
+		0,                                 // Share mode
+		0,                                 // Security attributes
+		syscall.CREATE_ALWAYS,             // Creation disposition
+		syscall.FILE_ATTRIBUTE_NORMAL,     // Flags & attributes
+		0,                                 // Template file
+	)
+
+	if handle == syscall.InvalidHandle {
+		fmt.Printf("Error at file %d: Unable to create handle\n", i)
+		break
+	}
+	
+	// To Close the file:
+	syscall.CloseHandle(handle)`
+
+	return nil
+}

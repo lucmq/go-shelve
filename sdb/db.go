@@ -152,6 +152,12 @@ func Open(path string, options ...Option) (*DB, error) {
 		option(&db)
 	}
 
+	// TODO: We need to do this (set max open files) more carefully.
+	//  Also, we need to implement windows compatibility.
+	if err := setMaxOpenFiles(10_000_000); err != nil {
+		return nil, fmt.Errorf("set max open files: %w", err)
+	}
+
 	err := initializeDatabase(&db)
 	if err != nil {
 		return nil, fmt.Errorf("initialize database: %w", err)

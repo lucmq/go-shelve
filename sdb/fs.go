@@ -155,6 +155,11 @@ func readDir(path string, fn func(name string) (bool, error)) (err error) {
 	}
 }
 
+// setMaxOpenFiles sets the system's max open files limit using sysctl.
+func setMaxOpenFiles(limit int) error {
+	return _setMaxOpenFiles(limit)
+}
+
 // Helpers
 
 func makeTempPath(path string) string {
