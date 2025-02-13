@@ -1,6 +1,8 @@
 package sdb
 
-import "github.com/lucmq/go-shelve/sdb/internal"
+import (
+	"github.com/lucmq/go-shelve/sdb/internal"
+)
 
 // Option is passed to the Open function to create a customized DB.
 type Option func(*DB)
@@ -11,6 +13,20 @@ type Option func(*DB)
 func WithCacheSize(size int64) Option {
 	return func(db *DB) {
 		db.cache = internal.NewCache[cacheEntry](int(size))
+	}
+}
+
+func WithFileCacheEnabled(enabled bool) Option {
+	return func(db *DB) {
+		// TODO: set a flag in the db to enable keeping a many open files.
+
+		// TODO: Might be a FS Option if we decide not to add *os.File to the cacheEntry struct.
+	}
+}
+
+func WithMaxOpenFiles(max int) Option {
+	return func(db *DB) {
+		// TODO: This option might not be needed if we decide to add *os.File to the cacheEntry struct.
 	}
 }
 

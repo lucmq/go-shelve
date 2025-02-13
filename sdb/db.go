@@ -69,6 +69,7 @@ import (
 	"encoding/base32"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sync"
@@ -76,6 +77,13 @@ import (
 
 	"github.com/lucmq/go-shelve/sdb/internal"
 )
+
+// TODO: The idea in this branch is to improve the performance of the DB by
+//  caching *os.File objects to avoid unnecessary disk I/O done by constantly
+//  opening and closing files.
+//  We have to be careful though, not to exhaust all available file descriptors
+//  on the system.
+//  Also, we might need to close all open files if the database is closed.
 
 const (
 	// DefaultCacheSize is the default size of the cache used to speed up the
@@ -116,11 +124,15 @@ type DB struct {
 	path       string
 	metadata   metadata
 	cache      internal.Cache[cacheEntry]
+	fCache     internal.Cache[*os.File]
 	syncWrites bool
 }
 
 // cacheEntry represents an entry in the cache.
 type cacheEntry = []byte
+
+// TODO: We could consider refactoring `cacheEntry` as struct { []byte, *os.File }
+//       to reduce memory usage and improve performance. Also, it
 
 // Open opens the database at the given path. If the path does not exist, it is
 // created.
@@ -131,6 +143,7 @@ func Open(path string, options ...Option) (*DB, error) {
 		path:       path,
 		metadata:   makeMetadata(),
 		cache:      internal.NewCache[cacheEntry](-1),
+		fCache:     internal.NewCache[*os.File](-1),
 		syncWrites: false,
 	}
 
@@ -150,6 +163,8 @@ func Open(path string, options ...Option) (*DB, error) {
 
 // Close synchronizes and closes the database.
 func (db *DB) Close() error {
+	// TODO: Close open files in db.fCache?
+	//  for key, file := range db.fCache.Items() { ... }
 	return db.Sync()
 }
 
@@ -199,7 +214,17 @@ func (db *DB) Get(key []byte) ([]byte, error) {
 		return v, nil
 	}
 
-	value, err := os.ReadFile(keyPath(db, key))
+	path := keyPath(db, key)
+	f, ok := db.fCache.Get(path)
+	if ok {
+		v, err := io.ReadAll(f)
+		if err != nil {
+			return nil, fmt.Errorf("read file: %w", err)
+		}
+		return v, nil
+	}
+
+	value, err := os.ReadFile(path)
 	if err != nil && !os.IsNotExist(err) {
 		return nil, fmt.Errorf("read file: %w", err)
 	}
@@ -240,6 +265,8 @@ func (db *DB) Put(key, value []byte) error {
 }
 
 func putPath(db *DB, path string, value []byte) (updated bool, err error) {
+	// TODO: Check if the file is present in db.fCache.
+
 	_, err = os.Stat(path)
 	if err != nil && !os.IsNotExist(err) {
 		return false, fmt.Errorf("stat: %w", err)
@@ -250,6 +277,17 @@ func putPath(db *DB, path string, value []byte) (updated bool, err error) {
 
 	writer := newAtomicWriter(db.syncWrites)
 	err = writer.WriteFile(path, value, !updated)
+
+	// TODO: Refactor so that we can keep the *File earlier
+	//  and we don't need to reopen it.
+	if err == nil {
+		f, err := os.Open(path)
+		if err != nil {
+			return false, fmt.Errorf("open: %w", err)
+		}
+		db.fCache.Put(path, f)
+	}
+
 	return updated, err
 }
 
@@ -261,14 +299,18 @@ func (db *DB) Delete(key []byte) error {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 
+	path := keyPath(db, key)
+
 	var deleted bool
-	err := os.Remove(keyPath(db, key))
+	err := os.Remove(path)
 	if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("remove: %w", err)
 	}
 	if err == nil {
 		deleted = true
 	}
+
+	db.fCache.Delete(path)
 
 	if deleted {
 		db.metadata.TotalEntries--
@@ -336,6 +378,15 @@ func handlePathWithLock(
 	value, ok := db.cache.Get(string(key))
 	if ok {
 		return fn(key, value)
+	}
+
+	f, ok := db.fCache.Get(path)
+	if ok {
+		v, err := io.ReadAll(f)
+		if err != nil {
+			return false, fmt.Errorf("read file: %w", err)
+		}
+		return fn(key, v)
 	}
 
 	// Read from the disk
