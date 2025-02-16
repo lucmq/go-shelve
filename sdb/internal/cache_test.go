@@ -319,10 +319,13 @@ func BenchmarkRandomCache_Get(b *testing.B) {
 				c.Put(keys[i], i)
 			}
 
+			b.ReportAllocs()
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
 				_, _ = c.Get(keys[i%bm.size])
 			}
+
+			b.ReportMetric(float64(b.N)/b.Elapsed().Seconds(), "ops/sec")
 		})
 	}
 }
@@ -349,9 +352,13 @@ func BenchmarkRandomCache_Put(b *testing.B) {
 				keys[i] = fmt.Sprint(i)
 			}
 
+			b.ReportAllocs()
+			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
 				c.Put(keys[i%bm.size], 42)
 			}
+
+			b.ReportMetric(float64(b.N)/b.Elapsed().Seconds(), "ops/sec")
 		})
 	}
 }
@@ -359,9 +366,13 @@ func BenchmarkRandomCache_Put(b *testing.B) {
 func BenchmarkRandomCache_Delete(b *testing.B) {
 	N := 10000
 	c := newRandomCache[int](N)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
 	for i := 0; i < b.N; i++ {
 		if len(c.cache) < N/8 {
-			// Create sample items
+			// Refill cache when it runs low
 			b.StopTimer()
 			c = newRandomCache[int](N)
 			for j := 0; j < N; j++ {
@@ -369,6 +380,8 @@ func BenchmarkRandomCache_Delete(b *testing.B) {
 			}
 			b.StartTimer()
 		}
-		c.Delete(strconv.Itoa(b.N % N))
+		c.Delete(strconv.Itoa(i % N))
 	}
+
+	b.ReportMetric(float64(b.N)/b.Elapsed().Seconds(), "ops/sec")
 }
