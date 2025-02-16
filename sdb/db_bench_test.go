@@ -2,6 +2,7 @@ package sdb
 
 import (
 	"fmt"
+	"math/rand/v2"
 	"sync"
 	"testing"
 )
@@ -51,8 +52,6 @@ func BenchmarkDB_Put(b *testing.B) {
 			db := OpenBenchDB(b, bm.opts...)
 			defer db.Close()
 
-			inserted := 0
-
 			b.ReportAllocs()
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
@@ -60,15 +59,9 @@ func BenchmarkDB_Put(b *testing.B) {
 				if err != nil {
 					b.Fatalf("put: %s", err)
 				}
-
-				inserted++
 			}
 
-			b.Logf(
-				"Insert: %d (%d items/s)",
-				inserted,
-				int(float64(inserted)/b.Elapsed().Seconds()),
-			)
+			b.ReportMetric(float64(b.N)/b.Elapsed().Seconds(), "ops/sec")
 		})
 	}
 }
@@ -84,38 +77,33 @@ func BenchmarkDB_Put_Concurrent(b *testing.B) {
 		}
 	}
 
-	C := 100
+	C := 100 // Number of goroutines
 	b.Run(fmt.Sprintf("Put-%d", C), func(b *testing.B) {
 		db := OpenBenchDB(b)
 		defer db.Close()
 
-		inserted := 0
-
-		wg := &sync.WaitGroup{}
-		ch := make(chan int, C)
+		var wg sync.WaitGroup
 
 		b.ReportAllocs()
 		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
-			ch <- 1
-			go func(i int) {
-				wg.Add(1)
+		for i := 0; i < C; i++ {
+			wg.Add(1)
+			go func() {
 				defer wg.Done()
-				defer func() { <-ch }()
-				err := db.Put(items[i%N][0], items[i%N][1])
-				if err != nil {
-					b.Fatalf("put: %s", err)
+				for j := 0; j < b.N/C; j++ {
+					// Use rand to avoid many simultaneous writes on the same file.
+					x := rand.Int()
+					err := db.Put(items[x%N][0], items[x%N][1])
+					if err != nil {
+						b.Errorf("put: %s", err)
+						return
+					}
 				}
-			}(i)
-			inserted++
+			}()
 		}
 		wg.Wait()
 
-		b.Logf(
-			"Insert: %d (%d items/s)",
-			inserted,
-			int(float64(inserted)/b.Elapsed().Seconds()),
-		)
+		b.ReportMetric(float64(b.N)/b.Elapsed().Seconds(), "ops/sec")
 	})
 }
 
@@ -163,8 +151,6 @@ func BenchmarkDB_Get(b *testing.B) {
 		}
 
 		b.Run(bm.name, func(b *testing.B) {
-			itemsRead := 0
-
 			b.ReportAllocs()
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
@@ -172,15 +158,9 @@ func BenchmarkDB_Get(b *testing.B) {
 				if err != nil {
 					b.Fatalf("get: %s", err)
 				}
-
-				itemsRead++
 			}
 
-			b.Logf(
-				"Read: %d (%d items/s)",
-				itemsRead,
-				int(float64(itemsRead)/b.Elapsed().Seconds()),
-			)
+			b.ReportMetric(float64(b.N)/b.Elapsed().Seconds(), "ops/sec")
 		})
 
 		db.Close()
@@ -252,11 +232,7 @@ func BenchmarkDB_Items(b *testing.B) {
 				}
 			}
 
-			b.Logf(
-				"Read: %d (%d items/s)",
-				itemsRead,
-				int(float64(itemsRead)/b.Elapsed().Seconds()),
-			)
+			b.ReportMetric(float64(itemsRead)/b.Elapsed().Seconds(), "ops/sec")
 		})
 
 		db.Close()

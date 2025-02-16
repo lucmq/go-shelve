@@ -9,11 +9,11 @@
 # #############################################################################
 
 # Copy the DB test suite file
-cp ../sdb/db_main_test.go ./test/db_main.go
+cp sdb/db_main_test.go ./driver/test/db_main.go
 
 # Copy the Codec test suite file
-cp ../shelve/codec_main_test.go ./test/codec_main.go
+cp shelve/codec_main_test.go ./driver/test/codec_main.go
 
 # Update the package name
-sed -i -e 's/package sdb/package shelvetest/g' ./test/db_main.go
-sed -i -e 's/package shelve/package shelvetest/g' ./test/codec_main.go
+sed -i -e 's/package sdb/package shelvetest/g' ./driver/test/db_main.go
+sed -i -e 's/package shelve/package shelvetest/g' ./driver/test/codec_main.go

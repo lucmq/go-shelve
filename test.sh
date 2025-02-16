@@ -21,6 +21,9 @@ should_skip() {
   return 1
 }
 
+# Update the test files for the drivers.
+chmod +x ./driver/update-tests.sh && ./driver/update-tests.sh
+
 # Find all directories containing a go.mod file and call the Go test
 # command in each one.
 for d in $(find "$(pwd)" -type f -name "go.mod" -exec dirname {} \;); do

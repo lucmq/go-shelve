@@ -2,6 +2,8 @@ package shelvetest
 
 import (
 	"errors"
+	"fmt"
+	"math/rand/v2"
 	"reflect"
 	"strconv"
 	"sync"
@@ -268,31 +270,46 @@ func (T *DBTests) TestPut(t *testing.T) {
 
 	t.Run("Put concurrent", func(t *testing.T) {
 		// Arrange
-		seed := make(map[string]string)
-		for i := 0; i < 100; i++ {
-			key := []byte("key-" + strconv.Itoa(i))
-			value := []byte("value-" + strconv.Itoa(i))
-			seed[string(key)] = string(value)
+		N := 1000
+		items := make([][2][]byte, N)
+		for i := 0; i < N; i++ {
+			items[i] = [2][]byte{
+				[]byte(fmt.Sprintf("key-%d", i)),
+				[]byte(fmt.Sprintf("value-%d", i)),
+			}
 		}
 		db := StartDatabase(t, T.Open, nil)
 
+		inserted := make(map[string]string)
+		mu := sync.Mutex{}
+
+		C := 30 // Number of goroutines
+
 		// Act
 		var wg sync.WaitGroup
-		for k, v := range seed {
-			key, value := k, v // Capture
+		for i := 0; i < C; i++ {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				err := db.Put([]byte(key), []byte(value))
-				if err != nil {
-					t.Errorf("Expected no error, but got %v", err)
+				for j := 0; j < N/C; j++ {
+					// Use rand to avoid many simultaneous writes on the same file.
+					x := rand.Int()
+					err := db.Put(items[x%N][0], items[x%N][1])
+					if err != nil {
+						t.Errorf("put: %s", err)
+						return
+					}
+
+					mu.Lock()
+					inserted[string(items[x%N][0])] = string(items[x%N][1])
+					mu.Unlock()
 				}
 			}()
 		}
 		wg.Wait()
 
 		// Assert
-		checkDatabase(t, db, seed)
+		checkDatabase(t, db, inserted)
 	})
 }
 

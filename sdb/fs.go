@@ -134,6 +134,9 @@ func readDir(path string, fn func(name string) (bool, error)) (err error) {
 	for {
 		var names []string
 		batchSize := 256
+		// Note: We may need to acquire a read lock (`DB.mu.RLock()`) both here
+		// and within DB.handlePathWithLock, as we already do. This ensures
+		// consistency when reading directory entries and accessing database records.
 		names, err = f.Readdirnames(batchSize)
 		if err != nil {
 			// EOF or unreadable dir

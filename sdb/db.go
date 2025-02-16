@@ -221,6 +221,7 @@ func (db *DB) Put(key, value []byte) error {
 	if len(key) > MaxKeyLength {
 		return ErrKeyTooLarge
 	}
+
 	db.mu.Lock()
 	defer db.mu.Unlock()
 
@@ -279,17 +280,19 @@ func (db *DB) Delete(key []byte) error {
 	return nil
 }
 
-// Items iterates over key-value pairs in the database, calling fn(k, v)
-// for each pair in the sequence. The iteration stops early if the function
-// fn returns false.
+// Items iterates over key-value pairs in the database, invoking fn(k, v)
+// for each pair. Iteration stops early if fn returns false.
 //
-// The start and order parameters exist for compatibility with the shelve.DB
-// interface and are not currently used.
+// The start and order parameters are present for compatibility with the
+// shelve.DB interface but are currently unused.
 //
-// The operation will acquire a read lock everytime a database record is read
-// and will hold for the duration of the fn callback. Implementations that need
-// to quickly release the lock, should copy the key-value pair and return as
-// soon as possible from the callback.
+// This operation acquires a read lock each time a database record is read
+// and holds it for the duration of the fn callback. Implementations that
+// require faster lock release should copy the key-value pair and return
+// from the callback as quickly as possible.
+//
+// The user-provided fn(k, v) must not modify the database within the same
+// goroutine as the iteration, as this would cause a deadlock.
 func (db *DB) Items(start []byte, order int, fn Yield) error {
 	_, _ = start, order
 	root := filepath.Join(db.path, dataDirectory)
@@ -321,24 +324,29 @@ func handlePathWithLock(
 	path string,
 	fn func(key, value []byte) (bool, error),
 ) (bool, error) {
-	db.mu.RLock()
-	defer db.mu.RUnlock()
-
-	// Note: Hold the lock while the callback fn is being executed. Do not
-	// assume we can release it earlier (after the record read).
-
 	key, err := parseKey(path)
 	if err != nil {
 		return false, fmt.Errorf("parse key: %w", err)
 	}
 
-	// Use the cache (but do not cache aside while iterating)
+	// Note: Hold the lock while the callback fn is being executed. Do not
+	// assume we can release it earlier (after the record read).
+	// This ensures that `fn` does not process stale data (i.e. the key-value pair
+	// will be the same on the database for as long as `fn` is running).
+	// However, notice that this will cause a deadlock if the code from `fn` tries to
+	// modify the database (i.e. Put or Delete, which write-acquire the mutex).
+	db.mu.RLock()
+	defer db.mu.RUnlock()
+
+	// Use the cache (but do not cache aside while iterating) because that would
+	// result in a lot of cache turnover with keys that might not be needed to be
+	// cached.
 	value, ok := db.cache.Get(string(key))
 	if ok {
 		return fn(key, value)
 	}
 
-	// Read from the disk
+	// Read from the disk.
 	v, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
 		// Deleted while iterating? Ignore.
