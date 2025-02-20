@@ -12,6 +12,10 @@ import (
 
 // Test Suite
 
+// NOTE: The tests in this file are also included in the suite located at
+// driver/test/db_main.go. Therefore, only tests that are universally
+// applicable to all shelve.DB implementations should be placed here.
+
 // OpenFunc is a function that opens a new database.
 type OpenFunc func() (TDB, error)
 

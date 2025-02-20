@@ -100,6 +100,9 @@ const version = 1
 var (
 	// ErrKeyTooLarge is returned when a key exceeds the maximum length.
 	ErrKeyTooLarge = errors.New("key exceeds maximum length")
+
+	// ErrDatabaseClosed is returned when the database is closed.
+	ErrDatabaseClosed = errors.New("database is closed")
 )
 
 // Yield is a function called when iterating over key-value pairs in the
@@ -112,11 +115,22 @@ type Yield = func(key, value []byte) (bool, error)
 //
 // A DB is safe for concurrent use by multiple goroutines.
 type DB struct {
-	mu         sync.RWMutex
-	path       string
-	metadata   metadata
-	cache      internal.Cache[cacheEntry]
+	mu       sync.RWMutex
+	path     string
+	metadata metadata
+	cache    internal.Cache[cacheEntry]
+	closed   bool
+
+	// Controls the background sync loop.
+	done chan struct{}
+	wg   sync.WaitGroup
+
 	syncWrites bool
+
+	// autoSync enables the background sync loop. Can be removed if a WAL
+	// is adopted for consistency, since the WAL would handle the sync
+	// loop unnecessary.
+	autoSync bool
 }
 
 // cacheEntry represents an entry in the cache.
@@ -131,10 +145,12 @@ func Open(path string, options ...Option) (*DB, error) {
 		path:       path,
 		metadata:   makeMetadata(),
 		cache:      internal.NewCache[cacheEntry](-1),
+		done:       make(chan struct{}),
 		syncWrites: false,
+		autoSync:   true,
 	}
 
-	// Apply options
+	// Apply options.
 	for _, option := range options {
 		option(&db)
 	}
@@ -143,19 +159,49 @@ func Open(path string, options ...Option) (*DB, error) {
 	if err != nil {
 		return nil, fmt.Errorf("initialize database: %w", err)
 	}
-	go syncMetadata(&db)
+
+	// Start the background loop if autoSync is enabled.
+	if db.autoSync {
+		db.wg.Add(1)
+		go syncMetadata(&db)
+	}
 
 	return &db, nil
 }
 
-// Close synchronizes and closes the database.
+// Close synchronizes and closes the database. Once Close() is called, no
+// further operations are valid and calls will fail with ErrDatabaseClosed.
 func (db *DB) Close() error {
-	return db.Sync()
+	// Acquire the lock and mark the DB as closed.
+	db.mu.Lock()
+	if db.closed {
+		db.mu.Unlock()
+		return nil
+	}
+	db.closed = true
+	db.mu.Unlock()
+
+	// Signal the background goroutine to stop.
+	close(db.done)
+	db.wg.Wait()
+
+	// Reacquire the lock to perform the final sync.
+	db.mu.Lock()
+	defer db.mu.Unlock()
+
+	return syncInternal(db)
 }
 
 // Len returns the number of items in the database. If an error occurs, it
 // returns -1.
 func (db *DB) Len() int64 {
+	db.mu.RLock()
+	defer db.mu.RUnlock()
+
+	if db.closed {
+		return -1
+	}
+
 	return int64(db.metadata.TotalEntries)
 }
 
@@ -164,16 +210,21 @@ func (db *DB) Sync() error {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 
-	// Mark as consistent
-	db.metadata.Checkpoint = db.metadata.Generation
+	if db.closed {
+		return ErrDatabaseClosed
+	}
 
-	return db.metadata.Save(db.path)
+	return syncInternal(db)
 }
 
 // Has reports whether a key exists in the database.
 func (db *DB) Has(key []byte) (bool, error) {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
+
+	if db.closed {
+		return false, ErrDatabaseClosed
+	}
 
 	_, ok := db.cache.Get(string(key))
 	if ok {
@@ -193,6 +244,10 @@ func (db *DB) Has(key []byte) (bool, error) {
 func (db *DB) Get(key []byte) ([]byte, error) {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
+
+	if db.closed {
+		return nil, ErrDatabaseClosed
+	}
 
 	v, ok := db.cache.Get(string(key))
 	if ok {
@@ -295,9 +350,17 @@ func (db *DB) Delete(key []byte) error {
 // goroutine as the iteration, as this would cause a deadlock.
 func (db *DB) Items(start []byte, order int, fn Yield) error {
 	_, _ = start, order
+
+	db.mu.RLock()
+	if db.closed {
+		db.mu.RUnlock()
+		return ErrDatabaseClosed
+	}
+	db.mu.RUnlock()
+
 	root := filepath.Join(db.path, dataDirectory)
-	_, err := items(db, root, fn)
-	if err != nil {
+
+	if _, err := items(db, root, fn); err != nil {
 		return fmt.Errorf("walk data directory: %w", err)
 	}
 	return nil
@@ -387,6 +450,10 @@ func prepareForMutation(db *DB) error {
 	}
 	defer db.mu.Unlock()
 
+	if db.closed {
+		return ErrDatabaseClosed
+	}
+
 	if db.metadata.Generation != db.metadata.Checkpoint {
 		// Already drifted
 		return nil
@@ -399,14 +466,33 @@ func prepareForMutation(db *DB) error {
 	return db.metadata.Save(db.path)
 }
 
+func syncInternal(db *DB) error {
+	// Mark as consistent
+	db.metadata.Checkpoint = db.metadata.Generation
+
+	return db.metadata.Save(db.path)
+}
+
 // syncMetadata periodically syncs the metadata to persistent storage.
-func syncMetadata(d *DB) {
-	// Note: This is only done to decrease the chance of a recovery triggered
-	// in the initialization due to a user forgetting to call DB.Close() or a
-	// system crash. The database doesn't really depend on this mechanism and
-	// errors here can be ignored.
+//
+// Note: This is only done to decrease the chance of a recovery triggered
+// in the initialization due to a user forgetting to call DB.Close() or a
+// system crash. The database doesn't really depend on this mechanism and
+// errors here can be ignored.
+func syncMetadata(db *DB) {
+	defer db.wg.Done()
+
+	ticker := time.NewTicker(metadataSyncInterval)
+	defer ticker.Stop()
+
 	for {
-		time.Sleep(metadataSyncInterval)
-		_ = d.Sync()
+		select {
+		case <-ticker.C:
+			_ = db.Sync()
+
+		case <-db.done:
+			// The channel is closed in Close(); exit the goroutine.
+			return
+		}
 	}
 }
