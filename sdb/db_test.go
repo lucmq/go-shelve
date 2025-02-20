@@ -134,3 +134,68 @@ func TestDB_FileError_Items(t *testing.T) {
 		}
 	})
 }
+
+func TestOperationsOnClosedDB(t *testing.T) {
+	// Open a new test database.
+	db, err := OpenTestDB()
+	if err != nil {
+		t.Fatalf("failed to open DB: %v", err)
+	}
+
+	// Close the DB to mark it as unusable.
+	if err := db.Close(); err != nil {
+		t.Fatalf("failed to close DB: %v", err)
+	}
+
+	// Test Put: should return ErrDatabaseClosed.
+	err = db.Put([]byte("testKey"), []byte("testValue"))
+	if !errors.Is(err, ErrDatabaseClosed) {
+		t.Errorf("Put after Close: expected ErrDatabaseClosed, got: %v", err)
+	}
+
+	// Test Delete.
+	err = db.Delete([]byte("testKey"))
+	if !errors.Is(err, ErrDatabaseClosed) {
+		t.Errorf("Delete after Close: expected ErrDatabaseClosed, got: %v", err)
+	}
+
+	// Test Sync.
+	err = db.Sync()
+	if !errors.Is(err, ErrDatabaseClosed) {
+		t.Errorf("Sync after Close: expected ErrDatabaseClosed, got: %v", err)
+	}
+
+	// Test Items.
+	err = db.Items(nil, 1, func(k, v []byte) (bool, error) {
+		return true, nil
+	})
+	if !errors.Is(err, ErrDatabaseClosed) {
+		t.Errorf("Items after Close: expected ErrDatabaseClosed, got: %v", err)
+	}
+
+	// Test Has.
+	_, err = db.Has([]byte("testKey"))
+	if !errors.Is(err, ErrDatabaseClosed) {
+		t.Errorf("Has after Close: expected ErrDatabaseClosed, got: %v", err)
+	}
+
+	// Test Get.
+	value, err := db.Get([]byte("testKey"))
+	if !errors.Is(err, ErrDatabaseClosed) {
+		t.Errorf("Get after Close: expected ErrDatabaseClosed, got: %v", err)
+	}
+	if value != nil {
+		t.Errorf("Get after Close: expected nil value, got: %v", value)
+	}
+
+	// Test Len.
+	if n := db.Len(); n != -1 {
+		t.Errorf("Len after Close: expected -1, got: %v", n)
+	}
+
+	// Test Close.
+	err = db.Close()
+	if err != nil {
+		t.Errorf("Close after Close: expected no error, got: %v", err)
+	}
+}
