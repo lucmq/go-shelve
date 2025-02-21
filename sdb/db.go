@@ -169,26 +169,39 @@ func Open(path string, options ...Option) (*DB, error) {
 	return &db, nil
 }
 
-// Close synchronizes and closes the database. Once Close() is called, no
-// further operations are valid and calls will fail with ErrDatabaseClosed.
+// Close synchronizes and closes the database. Users must ensure no pending
+// operations are in progress before calling Close().
+//
+// Example:
+//
+//	var wg sync.WaitGroup
+//	db, _ := sdb.Open("path")
+//
+//	// Start concurrent writes
+//	for i := 0; i < 10; i++ {
+//	    wg.Add(1)
+//	    go func(i int) {
+//	        defer wg.Done()
+//	        db.Put([]byte(fmt.Sprintf("key-%d", i)), []byte("value"))
+//	    }(i)
+//	}
+//
+//	wg.Wait()  // Ensure all writes are done
+//	db.Close() // Safe to close now
 func (db *DB) Close() error {
-	// Acquire the lock and mark the DB as closed.
 	db.mu.Lock()
+	defer db.mu.Unlock()
+
 	if db.closed {
-		db.mu.Unlock()
 		return nil
 	}
 	db.closed = true
-	db.mu.Unlock()
 
 	// Signal the background goroutine to stop.
 	close(db.done)
 	db.wg.Wait()
 
-	// Reacquire the lock to perform the final sync.
-	db.mu.Lock()
-	defer db.mu.Unlock()
-
+	// Final sync.
 	return syncInternal(db)
 }
 
@@ -280,6 +293,10 @@ func (db *DB) Put(key, value []byte) error {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 
+	if db.closed {
+		return ErrDatabaseClosed
+	}
+
 	updated, err := putPath(db, keyPath(db, key), value)
 	if err != nil {
 		return fmt.Errorf("put path: %w", err)
@@ -316,6 +333,10 @@ func (db *DB) Delete(key []byte) error {
 	}
 	db.mu.Lock()
 	defer db.mu.Unlock()
+
+	if db.closed {
+		return ErrDatabaseClosed
+	}
 
 	var deleted bool
 	err := os.Remove(keyPath(db, key))
@@ -400,6 +421,10 @@ func handlePathWithLock(
 	// modify the database (i.e. Put or Delete, which write-acquire the mutex).
 	db.mu.RLock()
 	defer db.mu.RUnlock()
+
+	if db.closed {
+		return false, ErrDatabaseClosed
+	}
 
 	// Use the cache (but do not cache aside while iterating) because that would
 	// result in a lot of cache turnover with keys that might not be needed to be
