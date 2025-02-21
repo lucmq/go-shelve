@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
+	"time"
 )
 
 // Helpers
@@ -135,67 +137,250 @@ func TestDB_FileError_Items(t *testing.T) {
 	})
 }
 
-func TestOperationsOnClosedDB(t *testing.T) {
-	// Open a new test database.
-	db, err := OpenTestDB()
-	if err != nil {
-		t.Fatalf("failed to open DB: %v", err)
-	}
+func getClosedDB(t *testing.T, seed map[string]string) *DB {
+	t.Helper()
 
-	// Close the DB to mark it as unusable.
+	open := NewOpenFunc(true, WithCacheSize(0))
+	db := StartDatabase(t, open, seed)
 	if err := db.Close(); err != nil {
-		t.Fatalf("failed to close DB: %v", err)
+		t.Fatalf("Expected no error, but got %v", err)
 	}
 
-	// Test Put: should return ErrDatabaseClosed.
-	err = db.Put([]byte("testKey"), []byte("testValue"))
-	if !errors.Is(err, ErrDatabaseClosed) {
-		t.Errorf("Put after Close: expected ErrDatabaseClosed, got: %v", err)
-	}
+	return db
+}
 
-	// Test Delete.
-	err = db.Delete([]byte("testKey"))
-	if !errors.Is(err, ErrDatabaseClosed) {
-		t.Errorf("Delete after Close: expected ErrDatabaseClosed, got: %v", err)
-	}
+func TestOperationsOnClosedDB(t *testing.T) {
+	t.Run("Close", func(t *testing.T) {
+		db := getClosedDB(t, nil)
 
-	// Test Sync.
-	err = db.Sync()
-	if !errors.Is(err, ErrDatabaseClosed) {
-		t.Errorf("Sync after Close: expected ErrDatabaseClosed, got: %v", err)
-	}
-
-	// Test Items.
-	err = db.Items(nil, 1, func(k, v []byte) (bool, error) {
-		return true, nil
+		err := db.Close()
+		if err != nil { // Close() is idempotent.
+			t.Errorf("Expected no error, but got %v", err)
+		}
 	})
-	if !errors.Is(err, ErrDatabaseClosed) {
-		t.Errorf("Items after Close: expected ErrDatabaseClosed, got: %v", err)
-	}
 
-	// Test Has.
-	_, err = db.Has([]byte("testKey"))
-	if !errors.Is(err, ErrDatabaseClosed) {
-		t.Errorf("Has after Close: expected ErrDatabaseClosed, got: %v", err)
-	}
+	t.Run("Sync", func(t *testing.T) {
+		db := getClosedDB(t, nil)
 
-	// Test Get.
-	value, err := db.Get([]byte("testKey"))
-	if !errors.Is(err, ErrDatabaseClosed) {
-		t.Errorf("Get after Close: expected ErrDatabaseClosed, got: %v", err)
-	}
-	if value != nil {
-		t.Errorf("Get after Close: expected nil value, got: %v", value)
-	}
+		err := db.Sync()
+		if !errors.Is(err, ErrDatabaseClosed) {
+			t.Errorf("Sync after Close: expected ErrDatabaseClosed, got: %v", err)
+		}
+	})
 
-	// Test Len.
-	if n := db.Len(); n != -1 {
-		t.Errorf("Len after Close: expected -1, got: %v", n)
-	}
+	t.Run("Len", func(t *testing.T) {
+		db := getClosedDB(t, nil)
 
-	// Test Close.
-	err = db.Close()
-	if err != nil {
-		t.Errorf("Close after Close: expected no error, got: %v", err)
-	}
+		if db.Len() != -1 {
+			t.Errorf("Len after Close: expected -1, got: %v", db.Len())
+		}
+	})
+
+	t.Run("Has", func(t *testing.T) {
+		db := getClosedDB(t, nil)
+
+		_, err := db.Has([]byte("testKey"))
+		if !errors.Is(err, ErrDatabaseClosed) {
+			t.Errorf("Has after Close: expected ErrDatabaseClosed, got: %v", err)
+		}
+	})
+
+	t.Run("Get", func(t *testing.T) {
+		db := getClosedDB(t, nil)
+
+		_, err := db.Get([]byte("testKey"))
+		if !errors.Is(err, ErrDatabaseClosed) {
+			t.Errorf("Get after Close: expected ErrDatabaseClosed, got: %v", err)
+		}
+	})
+
+	t.Run("Put", func(t *testing.T) {
+		db := getClosedDB(t, nil)
+
+		err := db.Put([]byte("testKey"), []byte("testValue"))
+		if !errors.Is(err, ErrDatabaseClosed) {
+			t.Errorf("Put after Close: expected ErrDatabaseClosed, got: %v", err)
+		}
+	})
+
+	t.Run("Put - Concurrent and Some After Close()", func(t *testing.T) {
+		db := StartDatabase(
+			t,
+			NewOpenFunc(true, WithCacheSize(0)),
+			map[string]string{
+				"key-1": "value-1", "key-2": "value-2",
+				"key-3": "value-3", "key-4": "value-4",
+				"key-5": "value-5", "key-6": "value-6",
+			},
+		)
+
+		N := 100
+		closeN := 10 // Close() is called when we reach this index.
+
+		wg := sync.WaitGroup{}
+
+		mu := sync.Mutex{}
+		var errs []error
+
+		// Act
+		for i := 0; i < N; i++ {
+			wg.Add(1)
+			go func(i int) {
+				defer wg.Done()
+				if i == closeN {
+					if err := db.Close(); err != nil {
+						t.Errorf("Expected no error, but got %v", err)
+						return
+					}
+				}
+
+				key := fmt.Sprintf("key-%d", i)
+				value := fmt.Sprintf("value-%d", i)
+
+				if err := db.Put([]byte(key), []byte(value)); err != nil {
+					mu.Lock()
+					errs = append(errs, err)
+					mu.Unlock()
+				}
+			}(i)
+		}
+
+		wg.Wait()
+
+		// Assert
+		if len(errs) == 0 {
+			t.Errorf("Expected at least one error, but got none")
+		}
+		for _, err := range errs {
+			if !errors.Is(err, ErrDatabaseClosed) {
+				t.Errorf("Put after Close: expected ErrDatabaseClosed, got: %v", err)
+			}
+		}
+	})
+
+	t.Run("Delete", func(t *testing.T) {
+		db := getClosedDB(t, nil)
+
+		err := db.Delete([]byte("testKey"))
+		if !errors.Is(err, ErrDatabaseClosed) {
+			t.Errorf("Delete after Close: expected ErrDatabaseClosed, got: %v", err)
+		}
+	})
+
+	t.Run("Delete - Concurrent and Some After Close()", func(t *testing.T) {
+		db := StartDatabase(
+			t,
+			NewOpenFunc(true, WithCacheSize(0)),
+			map[string]string{
+				"key-1": "value-1", "key-2": "value-2",
+				"key-3": "value-3", "key-4": "value-4",
+				"key-5": "value-5", "key-6": "value-6",
+			},
+		)
+
+		N := 100
+		closeN := 10 // Close() is called when we reach this index.
+
+		wg := sync.WaitGroup{}
+
+		mu := sync.Mutex{}
+		var errs []error
+
+		// Act
+		for i := 0; i < N; i++ {
+			wg.Add(1)
+			go func(i int) {
+				defer wg.Done()
+				if i == closeN {
+					if err := db.Close(); err != nil {
+						t.Errorf("Expected no error, but got %v", err)
+						return
+					}
+				}
+
+				key := fmt.Sprintf("key-%d", i)
+
+				if err := db.Delete([]byte(key)); err != nil {
+					mu.Lock()
+					errs = append(errs, err)
+					mu.Unlock()
+				}
+			}(i)
+		}
+		wg.Wait()
+
+		// Assert
+		if len(errs) == 0 {
+			t.Errorf("Expected at least one error, but got none")
+		}
+		for _, err := range errs {
+			if !errors.Is(err, ErrDatabaseClosed) {
+				t.Errorf("Put after Close: expected ErrDatabaseClosed, got: %v", err)
+			}
+		}
+	})
+
+	t.Run("Items - Empty DB", func(t *testing.T) {
+		db := getClosedDB(t, nil)
+
+		err := db.Items(nil, 1, func(k, v []byte) (bool, error) {
+			return true, nil
+		})
+		if !errors.Is(err, ErrDatabaseClosed) {
+			t.Errorf("Items after Close: expected ErrDatabaseClosed, got: %v", err)
+		}
+	})
+
+	t.Run("Items - Non-Empty DB", func(t *testing.T) {
+		db := getClosedDB(t, map[string]string{
+			"key-1": "value-1", "key-2": "value-2",
+			"key-3": "value-3", "key-4": "value-4",
+		})
+
+		err := db.Items(nil, 1, func(k, v []byte) (bool, error) {
+			return true, nil
+		})
+		if !errors.Is(err, ErrDatabaseClosed) {
+			t.Errorf("Items after Close: expected ErrDatabaseClosed, got: %v", err)
+		}
+	})
+
+	t.Run("Items - While Iterating", func(t *testing.T) {
+		db := StartDatabase(
+			t,
+			NewOpenFunc(true, WithCacheSize(0)),
+			map[string]string{
+				"key-1": "value-1", "key-2": "value-2",
+				"key-3": "value-3", "key-4": "value-4",
+				"key-5": "value-5", "key-6": "value-6",
+			},
+		)
+
+		i := 0
+		wg := sync.WaitGroup{}
+
+		err := db.Items(nil, 1, func(k, v []byte) (bool, error) {
+			if i == 0 {
+				// Close the database while iterating, on a separate goroutine
+				// so that the iteration is not blocked.
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					if err := db.Close(); err != nil {
+						t.Errorf("Expected no error, but got %v", err)
+						return
+					}
+				}()
+			} else {
+				// Give the goroutine a chance to close the database.
+				time.Sleep(10 * time.Millisecond)
+			}
+			i++
+
+			return true, nil
+		})
+		if !errors.Is(err, ErrDatabaseClosed) {
+			t.Errorf("Items after Close: expected ErrDatabaseClosed, got: %v", err)
+		}
+	})
 }

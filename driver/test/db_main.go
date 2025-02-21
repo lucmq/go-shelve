@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"sync"
 	"testing"
+	"time"
 )
 
 // Test Suite
@@ -315,6 +316,53 @@ func (T *DBTests) TestPut(t *testing.T) {
 		// Assert
 		checkDatabase(t, db, inserted)
 	})
+
+	// Test that many goroutines putting the *same* key concurrently do not fail or
+	// corrupt the database. In particular, it validates that our single‐sector‐write
+	// optimization (which can use O_EXCL when creating new files) does not break
+	// under concurrency, thanks to the global lock in Put(). If we removed the
+	// internal lock calls, we'd see the second goroutine's O_EXCL fail and cause
+	// an error. This test guards against inadvertently dropping that lock or
+	// otherwise breaking concurrency in future changes.
+	t.Run("Put concurrent - Same key", func(t *testing.T) {
+		// Arrange
+		N := 1000
+		item := [2][]byte{
+			[]byte(fmt.Sprintf("key-%d", 0)),
+			[]byte(fmt.Sprintf("value-%d", 0)),
+		}
+		db := StartDatabase(t, T.Open, nil)
+
+		inserted := make(map[string]string)
+		mu := sync.Mutex{}
+
+		C := 30 // Number of goroutines
+
+		// Act
+		var wg sync.WaitGroup
+		for i := 0; i < C; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				for j := 0; j < N/C; j++ {
+					err := db.Put(item[0], item[1])
+					if err != nil {
+						t.Errorf("put: %s", err)
+						return
+					}
+
+					mu.Lock()
+					inserted[string(item[0])] = string(item[1])
+					mu.Unlock()
+				}
+			}()
+		}
+		wg.Wait()
+
+		// Assert
+		checkDatabase(t, db, inserted)
+	})
+
 }
 
 func (T *DBTests) TestDelete(t *testing.T) {
@@ -501,6 +549,56 @@ func (T *DBTests) TestItems(t *testing.T) {
 		})
 		if !errors.Is(err, TestError) {
 			t.Errorf("Expected %v, but got %v", TestError, err)
+		}
+	})
+
+	t.Run("Items - delete while iterating", func(t *testing.T) {
+		seed := map[string]string{
+			"key-1": "value-1", "key-2": "value-2",
+			"key-3": "value-3", "key-4": "value-4",
+		}
+		db := StartDatabase(t, T.Open, seed)
+
+		i := 0
+		wg := sync.WaitGroup{}
+		gotItems := make(map[string]string)
+
+		// Act
+		err := db.Items(nil, 1, func(k, v []byte) (bool, error) {
+			if i == 0 {
+				// Close the database while iterating, on a separate goroutine
+				// so that the iteration is not blocked.
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					for k := range seed {
+						if err := db.Delete([]byte(k)); err != nil {
+							t.Errorf("Expected no error, but got %v", err)
+						}
+					}
+				}()
+			} else {
+				// Give the goroutine a chance to delete some items.
+				time.Sleep(10 * time.Millisecond)
+			}
+
+			gotItems[string(k)] = string(v)
+			i++
+
+			return true, nil
+		})
+		if err != nil {
+			t.Errorf("Expected no error, but got %v", err)
+		}
+
+		// Assert
+		if len(gotItems) > len(seed) {
+			t.Errorf("Expected len to be at most %v, but got %v",
+				len(seed), len(gotItems))
+		}
+		if len(gotItems) <= 1 {
+			t.Errorf("Expected len to be at least 1, but got %v",
+				len(gotItems))
 		}
 	})
 }
