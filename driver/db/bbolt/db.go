@@ -41,7 +41,7 @@ func NewDefault(path string, bucket []byte) (*Store, error) {
 	return New(db, bucket)
 }
 
-// Open opens an existing BoltDB store. It is a wrapper around bbolt.Open.
+// Open is a wrapper around bbolt.Open.
 func Open(path string, mode os.FileMode, options *bbolt.Options) (*bbolt.DB, error) {
 	return bbolt.Open(path, mode, options)
 }
