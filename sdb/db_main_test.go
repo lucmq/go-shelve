@@ -59,6 +59,7 @@ func (T *DBTests) TestAll(t *testing.T) {
 		if db == nil {
 			t.Errorf("Expected db to be non-nil")
 		}
+		db.Close()
 	})
 
 	T.TestClose(t)
@@ -104,6 +105,7 @@ func (T *DBTests) TestLen(t *testing.T) {
 		if err != nil {
 			t.Errorf("Expected no error, but got %v", err)
 		}
+		defer db.Close()
 
 		if db.Len() != 0 {
 			t.Errorf("Expected len to be 0, but got %v", db.Len())
@@ -115,6 +117,7 @@ func (T *DBTests) TestLen(t *testing.T) {
 		if err != nil {
 			t.Errorf("Expected no error, but got %v", err)
 		}
+		defer db.Close()
 		if err = db.Put([]byte("key"), []byte("value")); err != nil {
 			t.Errorf("Expected no error, but got %v", err)
 		}
@@ -131,6 +134,7 @@ func (T *DBTests) TestSync(t *testing.T) {
 		if err != nil {
 			t.Errorf("Expected no error, but got %v", err)
 		}
+		defer db.Close()
 
 		err = db.Sync()
 		if err != nil {
@@ -147,6 +151,7 @@ func (T *DBTests) TestHas(t *testing.T) {
 			"key-3": "value-3", "key-4": "value-4",
 		}
 		db := StartDatabase(t, T.Open, seed)
+		defer db.Close()
 		key := []byte("key-1")
 
 		// Act
@@ -168,6 +173,7 @@ func (T *DBTests) TestHas(t *testing.T) {
 			"key-3": "value-3", "key-4": "value-4",
 		}
 		db := StartDatabase(t, T.Open, seed)
+		defer db.Close()
 
 		// Act
 		has, err := db.Has([]byte("key-99"))
@@ -190,6 +196,7 @@ func (T *DBTests) TestGet(t *testing.T) {
 			"key-3": "value-3", "key-4": "value-4",
 		}
 		db := StartDatabase(t, T.Open, seed)
+		defer db.Close()
 		key := "key-3"
 
 		// Act
@@ -209,6 +216,7 @@ func (T *DBTests) TestGet(t *testing.T) {
 		// Arrange
 		seed := map[string]string{}
 		db := StartDatabase(t, T.Open, seed)
+		defer db.Close()
 
 		// Act
 		v, err := db.Get([]byte("key"))
@@ -228,6 +236,7 @@ func (T *DBTests) TestPut(t *testing.T) {
 		// Arrange
 		seed := map[string]string{}
 		db := StartDatabase(t, T.Open, seed)
+		defer db.Close()
 
 		// Act
 		if err := db.Put([]byte("key-1"), []byte("value-1")); err != nil {
@@ -246,6 +255,7 @@ func (T *DBTests) TestPut(t *testing.T) {
 			"key-3": "value-3", "key-4": "value-4",
 		}
 		db := StartDatabase(t, T.Open, seed)
+		defer db.Close()
 
 		// Act
 		if err := db.Put([]byte("key-2"), []byte("value-99")); err != nil {
@@ -268,6 +278,7 @@ func (T *DBTests) TestPut(t *testing.T) {
 
 		// Act
 		db := StartDatabase(t, T.Open, seed)
+		defer db.Close()
 
 		// Assert
 		checkDatabase(t, db, seed)
@@ -284,6 +295,7 @@ func (T *DBTests) TestPut(t *testing.T) {
 			}
 		}
 		db := StartDatabase(t, T.Open, nil)
+		defer db.Close()
 
 		inserted := make(map[string]string)
 		mu := sync.Mutex{}
@@ -332,6 +344,7 @@ func (T *DBTests) TestPut(t *testing.T) {
 			[]byte(fmt.Sprintf("value-%d", 0)),
 		}
 		db := StartDatabase(t, T.Open, nil)
+		defer db.Close()
 
 		inserted := make(map[string]string)
 		mu := sync.Mutex{}
@@ -373,6 +386,7 @@ func (T *DBTests) TestDelete(t *testing.T) {
 			"key-3": "value-3", "key-4": "value-4",
 		}
 		db := StartDatabase(t, T.Open, seed)
+		defer db.Close()
 
 		// Act
 		if err := db.Delete([]byte("key-3")); err != nil {
@@ -391,6 +405,7 @@ func (T *DBTests) TestDelete(t *testing.T) {
 			"key-3": "value-3", "key-4": "value-4",
 		}
 		db := StartDatabase(t, T.Open, seed)
+		defer db.Close()
 
 		// Act
 		if err := db.Delete([]byte("key-99")); err != nil {
@@ -410,6 +425,7 @@ func (T *DBTests) TestDelete(t *testing.T) {
 			seed[string(key)] = string(value)
 		}
 		db := StartDatabase(t, T.Open, seed)
+		defer db.Close()
 
 		// Act
 		for key, _ := range seed {
@@ -431,6 +447,7 @@ func (T *DBTests) TestDelete(t *testing.T) {
 			seed[string(key)] = string(value)
 		}
 		db := StartDatabase(t, T.Open, seed)
+		defer db.Close()
 
 		// Act
 		var wg sync.WaitGroup
@@ -458,6 +475,7 @@ func (T *DBTests) TestItems(t *testing.T) {
 			"key-3": "value-3", "key-4": "value-4",
 		}
 		db := StartDatabase(t, T.Open, seed)
+		defer db.Close()
 
 		// Act
 		gotItems := make(map[string]string)
@@ -485,6 +503,7 @@ func (T *DBTests) TestItems(t *testing.T) {
 			"key-3": "value-3", "key-4": "value-4",
 		}
 		db := StartDatabase(t, T.Open, seed)
+		defer db.Close()
 		stopAfter := 2
 
 		// Act
@@ -515,6 +534,7 @@ func (T *DBTests) TestItems(t *testing.T) {
 			"key-3": "value-3", "key-4": "value-4",
 		}
 		db := StartDatabase(t, T.Open, seed)
+		defer db.Close()
 
 		// Act
 		gotItems := make(map[string]string)
@@ -542,6 +562,7 @@ func (T *DBTests) TestItems(t *testing.T) {
 			"key-3": "value-3", "key-4": "value-4",
 		}
 		db := StartDatabase(t, T.Open, seed)
+		defer db.Close()
 
 		// Act / Assert
 		err := db.Items([]byte{}, 1, func(k, v []byte) (bool, error) {
@@ -558,6 +579,7 @@ func (T *DBTests) TestItems(t *testing.T) {
 			"key-3": "value-3", "key-4": "value-4",
 		}
 		db := StartDatabase(t, T.Open, seed)
+		defer db.Close()
 
 		i := 0
 		wg := sync.WaitGroup{}
@@ -566,8 +588,8 @@ func (T *DBTests) TestItems(t *testing.T) {
 		// Act
 		err := db.Items(nil, 1, func(k, v []byte) (bool, error) {
 			if i == 0 {
-				// Close the database while iterating, on a separate goroutine
-				// so that the iteration is not blocked.
+				// Delete from the database while iterating, on a separate
+				// goroutine so that the iteration is not blocked.
 				wg.Add(1)
 				go func() {
 					defer wg.Done()
@@ -590,6 +612,7 @@ func (T *DBTests) TestItems(t *testing.T) {
 		if err != nil {
 			t.Errorf("Expected no error, but got %v", err)
 		}
+		wg.Wait()
 
 		// Assert
 		if len(gotItems) > len(seed) {
@@ -638,6 +661,7 @@ func (T *DBTests) TestItems_Seek(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			// Arrange
 			db := StartDatabase(t, T.Open, seed)
+			defer db.Close()
 			start := []byte(test.start)
 			expected := test.expected
 
@@ -670,6 +694,7 @@ func (T *DBTests) TestItems_Reverse(t *testing.T) {
 			"key-3": "value-3", "key-4": "value-4",
 		}
 		db := StartDatabase(t, T.Open, seed)
+		defer db.Close()
 
 		// Act
 		gotItems := make(map[string]string)
@@ -727,6 +752,7 @@ func (T *DBTests) TestItems_SeekReverse(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			// Arrange
 			db := StartDatabase(t, T.Open, seed)
+			defer db.Close()
 			start := []byte(test.start)
 			expected := test.expected
 
@@ -758,6 +784,7 @@ func (T *DBTests) TestPersistence(t *testing.T) {
 			"key-1": "value-1", "key-2": "value-2",
 			"key-3": "value-3", "key-4": "value-4",
 		}
+		// Start the database, but only close after reopening.
 		db := StartDatabase(t, T.Open, seed)
 
 		T.CheckInitialization(t, db)

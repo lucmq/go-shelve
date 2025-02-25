@@ -55,7 +55,7 @@ func BenchmarkDB_Put(b *testing.B) {
 			b.ReportAllocs()
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				err := db.Put(items[i][0], items[i][1])
+				err := db.Put(items[i%N][0], items[i%N][1])
 				if err != nil {
 					b.Fatalf("put: %s", err)
 				}
