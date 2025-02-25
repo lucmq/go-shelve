@@ -37,11 +37,16 @@ func NewDefault(path string) (*Store, error) {
 	opts = opts.WithValueDir(path)
 	opts = opts.WithLoggingLevel(badger.ERROR)
 
-	db, err := badger.Open(opts)
+	db, err := Open(opts)
 	if err != nil {
 		return nil, fmt.Errorf("open db: %w", err)
 	}
 	return New(db)
+}
+
+// Open is a wrapper around badger.Open.
+func Open(opts badger.Options) (*badger.DB, error) {
+	return badger.Open(opts)
 }
 
 // Close closes the underlying BadgerDB database.

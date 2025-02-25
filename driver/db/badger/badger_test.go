@@ -46,6 +46,8 @@ func TestNewDefault(t *testing.T) {
 	})
 }
 
+// Driver Specific Tests
+
 func TestDB_EmptyKeys(t *testing.T) {
 	t.Run("Has", func(t *testing.T) {
 		db, err := NewDefault(dbPath)
