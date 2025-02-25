@@ -382,5 +382,6 @@ func TestOperationsOnClosedDB(t *testing.T) {
 		if !errors.Is(err, ErrDatabaseClosed) {
 			t.Errorf("Items after Close: expected ErrDatabaseClosed, got: %v", err)
 		}
+		wg.Wait()
 	})
 }
