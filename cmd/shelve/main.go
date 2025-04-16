@@ -26,7 +26,7 @@ func run() error {
 	flag.Usage = printUsage
 
 	storePath := flag.String("path", ".store", "Path to the shelve store")
-	codecName := flag.String("codec", "gob", "value serialization format: gob, json, or string")
+	codecName := flag.String("codec", "json", "value serialization format: gob, json, or string")
 	flag.Parse()
 
 	args := flag.Args()
@@ -227,7 +227,6 @@ func printValues(store *shelve.Shelf[K, V], start, end *string, limit int) error
 }
 
 func printUsage() {
-	//goland:noinspection GoPrintFunctions
 	fmt.Println(`shelve is a CLI tool for managing a shelve key-value store.
 
 Usage:
@@ -246,6 +245,6 @@ The commands are:
     values      list only the values
 
 Options:
-`)
+ `)
 	flag.PrintDefaults()
 }

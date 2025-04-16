@@ -126,7 +126,7 @@ func Open[K comparable, V any](path string, opts ...Option) (
 ) {
 	var k K
 	o := options{
-		Codec:    GobCodec(),
+		Codec:    JSONCodec(),
 		KeyCodec: defaultKeyCodec(k),
 	}
 	for _, option := range opts {

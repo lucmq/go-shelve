@@ -88,3 +88,19 @@ shelve put `date +%s` "Do the laundry"
 
 shelve items | sort
 ```
+
+---
+
+> ⚠️ **Codec Support**
+>
+> The `shelve-cmd` CLI is designed to work best with **JSON-based shelves**.
+>
+> If your application uses the default JSON codec, you'll be able to inspect and manipulate entries directly in the CLI.
+>
+> If you're using **Gob or a custom codec**, CLI support may be limited or unavailable due to type introspection limitations.
+>
+> To ensure CLI compatibility, we recommend using the default JSON codec:
+>
+> ```go
+> db, _ := shelve.Open("data.shelve") // Uses JSON
+> ```
