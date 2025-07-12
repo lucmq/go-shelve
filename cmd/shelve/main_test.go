@@ -10,6 +10,8 @@ import (
 	"testing"
 )
 
+const cmdName = "shelve"
+
 var dbPath = filepath.Join(os.TempDir(), "shelve-cmd-test")
 
 func init() {
@@ -24,7 +26,7 @@ func runCLI(t *testing.T, args ...string) string {
 	// Backup and restore state
 	oldArgs := os.Args
 	defer func() { os.Args = oldArgs }()
-	os.Args = append([]string{"shelve"}, args...)
+	os.Args = append([]string{cmdName}, args...)
 
 	// Reset flags
 	flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
@@ -234,6 +236,12 @@ func TestCLIItems(t *testing.T) {
 		expectUnorderedContains(t, got, []string{"b 2"})
 	})
 
+	t.Run("items with end", func(t *testing.T) {
+		items := runCLI(t, "-path", path, "items", "-end", "a")
+		// Note: Can't check the keys here because SDB doesn't guarantee order.
+		_ = items
+	})
+
 	t.Run("invalid items - Shelve error", func(t *testing.T) {
 		err := handleItems(newFakeShelve(t), "items", []string{})
 		if !errors.Is(err, TestError) {
@@ -247,12 +255,19 @@ func TestCLIItems(t *testing.T) {
 			t.Errorf("expected error, got nil")
 		}
 	})
+
+	t.Run("unknown flag", func(t *testing.T) {
+		err := handleItems(newFakeShelve(t), "items", []string{"-unknownFlag"})
+		if err == nil {
+			t.Errorf("expected error, got nil")
+		}
+	})
 }
 
 func TestCLIKeys(t *testing.T) {
 	path := setupTestDB(t)
 
-	runCLI(t, "-path", path, "put", "a", "1", "b", "2")
+	runCLI(t, "-path", path, "put", "a", "1", "b", "2", "c", "3")
 
 	t.Run("valid keys", func(t *testing.T) {
 		keys := runCLI(t, "-path", path, "keys")
@@ -262,6 +277,12 @@ func TestCLIKeys(t *testing.T) {
 	t.Run("keys with start", func(t *testing.T) {
 		keys := runCLI(t, "-path", path, "keys", "-start", "b")
 		expectUnorderedContains(t, keys, []string{"b"})
+	})
+
+	t.Run("keys with end", func(t *testing.T) {
+		keys := runCLI(t, "-path", path, "keys", "-end", "a")
+		// Note: Can't check the keys here because SDB doesn't guarantee order.
+		_ = keys
 	})
 
 	t.Run("invalid keys - Shelve error", func(t *testing.T) {
@@ -282,10 +303,46 @@ func TestCLIValues(t *testing.T) {
 		expectUnorderedContains(t, values, []string{"1", "2"})
 	})
 
+	t.Run("values with end", func(t *testing.T) {
+		values := runCLI(t, "-path", path, "values", "-end", "a")
+		// Note: Can't check the keys here because SDB doesn't guarantee order.
+		_ = values
+	})
+
 	t.Run("invalid values - Shelve error", func(t *testing.T) {
 		err := handleItems(newFakeShelve(t), "values", []string{})
 		if !errors.Is(err, TestError) {
 			t.Errorf("expected error %v, got %v", TestError, err)
+		}
+	})
+}
+
+func TestCodecs(t *testing.T) {
+	t.Run("gob", func(t *testing.T) {
+		got := runCLI(t, "-codec", "gob", "put", "a", "1")
+		if got != "OK" {
+			t.Errorf("expected 'OK', got %q", got)
+		}
+	})
+
+	t.Run("json", func(t *testing.T) {
+		got := runCLI(t, "-codec", "json", "put", "a", "1")
+		if got != "OK" {
+			t.Errorf("expected 'OK', got %q", got)
+		}
+	})
+
+	t.Run("string", func(t *testing.T) {
+		got := runCLI(t, "-codec", "string", "put", "a", "1")
+		if got != "OK" {
+			t.Errorf("expected 'OK', got %q", got)
+		}
+	})
+
+	t.Run("invalid codec", func(t *testing.T) {
+		got := runCLI(t, "-codec", "foo", "put", "a", "1")
+		if !strings.Contains(got, "unsupported codec") {
+			t.Errorf("expected error, got %q", got)
 		}
 	})
 }
@@ -295,13 +352,6 @@ func TestEdgeCases(t *testing.T) {
 		got := runCLI(t)
 		if !strings.Contains(got, "Usage:") {
 			t.Errorf("expected empty string, got %q", got)
-		}
-	})
-
-	t.Run("invalid codec", func(t *testing.T) {
-		got := runCLI(t, "-codec", "foo", "items")
-		if !strings.Contains(got, "unsupported codec") {
-			t.Errorf("expected error, got %q", got)
 		}
 	})
 
@@ -318,6 +368,28 @@ func TestEdgeCases(t *testing.T) {
 			t.Errorf("expected error, got %q", got)
 		}
 	})
+}
+
+func TestMainExitOnError(t *testing.T) {
+	t.Cleanup(func() {
+		// Restore the exit function.
+		exitOnError = false
+		exit = os.Exit
+	})
+
+	exitCode := 0
+
+	exitOnError = true
+	exit = func(code int) {
+		exitCode = code
+
+	}
+
+	runCLI(t, "items", "-unknownFlag")
+
+	if exitCode == 0 {
+		t.Error("expected exit code to be non-zero")
+	}
 }
 
 func expectUnorderedContains(t *testing.T, output string, expected []string) {

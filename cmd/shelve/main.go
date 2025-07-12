@@ -9,18 +9,21 @@ import (
 	"github.com/lucmq/go-shelve/shelve"
 )
 
+// TODO: Consider renaming the `string` codec to something else.
+
 type (
 	K = string
 	V = string
 )
 
 var exitOnError = true
+var exit = os.Exit
 
 func main() {
 	if err := run(); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "run failed: %v", err)
 		if exitOnError {
-			os.Exit(1)
+			exit(1)
 		}
 	}
 }
@@ -174,7 +177,7 @@ func handleLen(store *shelve.Shelf[K, V]) error {
 
 // List items, keys, or values with optional filters.
 func handleItems(store *shelve.Shelf[K, V], mode string, args []string) error {
-	fs := flag.NewFlagSet(mode, flag.ExitOnError)
+	fs := flag.NewFlagSet(mode, flag.ContinueOnError)
 	start := fs.String("start", "", "Start key (inclusive)")
 	end := fs.String("end", "", "End key (exclusive)")
 	limit := fs.Int("limit", shelve.All, "Maximum number of items")
