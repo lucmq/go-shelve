@@ -332,8 +332,8 @@ func TestCodecs(t *testing.T) {
 		}
 	})
 
-	t.Run("string", func(t *testing.T) {
-		got := runCLI(t, "-codec", "string", "put", "a", "1")
+	t.Run("text", func(t *testing.T) {
+		got := runCLI(t, "-codec", "text", "put", "a", "1")
 		if got != "OK" {
 			t.Errorf("expected 'OK', got %q", got)
 		}

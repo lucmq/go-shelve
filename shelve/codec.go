@@ -14,7 +14,7 @@ import (
 //   - [GobCodec]: Returns a Codec for the [gob] format.
 //   - [JSONCodec]: Returns a Codec for the JSON format.
 //   - [StringCodec]: Returns a Codec for values that can be represented as
-//     strings.
+//     plain text.
 //
 // Additional codecs are provided by the packages in [driver/encoding].
 //

@@ -9,8 +9,6 @@ import (
 	"github.com/lucmq/go-shelve/shelve"
 )
 
-// TODO: Consider renaming the `string` codec to something else.
-
 type (
 	K = string
 	V = string
@@ -32,7 +30,7 @@ func run() error {
 	flag.Usage = printUsage
 
 	storePath := flag.String("path", ".store", "Path to the shelve store")
-	codecName := flag.String("codec", "json", "value serialization format: gob, json, or string")
+	codecName := flag.String("codec", "json", "value serialization format: gob, json, or text")
 	flag.Parse()
 
 	args := flag.Args()
@@ -88,7 +86,7 @@ func getCodec(name string) (shelve.Codec, error) {
 		return shelve.GobCodec(), nil
 	case "json":
 		return shelve.JSONCodec(), nil
-	case "string":
+	case "text":
 		return shelve.StringCodec(), nil
 	default:
 		return nil, fmt.Errorf("unsupported codec: %s", name)
@@ -181,7 +179,6 @@ func handleItems(store *shelve.Shelf[K, V], mode string, args []string) error {
 	start := fs.String("start", "", "Start key (inclusive)")
 	end := fs.String("end", "", "End key (exclusive)")
 	limit := fs.Int("limit", shelve.All, "Maximum number of items")
-	_ = fs.Bool("paged", false, "Enable pagination (future feature)")
 
 	if err := fs.Parse(args); err != nil {
 		return fmt.Errorf("parse flags: %w", err)
