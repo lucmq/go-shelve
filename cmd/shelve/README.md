@@ -1,17 +1,28 @@
 # Go-Shelve CLI
 
-A CLI tool for managing a shelve key-value store.
+A simple and extensible CLI tool for managing a [go-shelve](https://github.com/lucmq/go-shelve) key-value store.
 
-## Installing
+## Installation
 
-```shell
+```sh
 go install github.com/lucmq/go-shelve/cmd/shelve@latest
 ```
 
+## Key Features
+
+* Simple CLI for interacting with shelve stores
+* Supports multiple codecs: `json`, `gob`, and `string`
+* Filtered listing (`--start`, `--end`, `--limit`)
+* Composable with shell tools (e.g. `sort`, `grep`)
+* Defaults to JSON serialization for compatibility and readability
+
 ## Limitations
 
-- Currently, it only supports string keys and values (`shelve.Shelf[string, string]`).
-- Only the default database `SDB` is supported.
+* Currently assumes `string` keys and values when used from the CLI (`shelve.Shelf[string, string]`)
+* Only the default database (`SDB`) is supported
+* Best used with the **JSON codec** for interoperability
+
+---
 
 ## Usage
 
@@ -20,7 +31,7 @@ Usage:
 
     shelve [options] <command> [arguments]
 
-The commands are:
+Commands:
 
     put         store one or more key-value pairs
     get         retrieve the value of a key
@@ -34,73 +45,79 @@ The commands are:
 Options:
 
   -codec string
-        value serialization format: gob, json, or string (default "gob")
+        Value serialization format: gob, json, or string (default "json")
   -path string
         Path to the shelve store (default ".store")
 ```
 
+---
+
 ## Examples
 
-```shell
-# Put a key-value pair
-shelve .store put key1 value1
+### Basic Operations
 
-# Get a value
-shelve .store get key1
+```sh
+# Store key-value pairs
+shelve put key1 value1 key2 value2
 
-# Get all items with filters
-shelve .store items -start "key-2" -end "key-4" -limit 10 -paged
-```
-
-```shell
-shelve .store put key1 value1 key2 value2 key3 value3
-shelve .store get key1
+# Retrieve a value
+shelve get key1
 # Output: value1
 
-shelve .store has key2
+# Check key existence
+shelve has key2
 # Output: true
 
-shelve .store len
-# Output: 3
+# Delete a key
+shelve delete key2
 
-shelve .store all
-# Output:
-# key1 value1
-# key2 value2
-# key3 value3
-
-shelve .store keys
-# Output:
-# key1
-# key2
-# key3
-
-shelve .store values
-# Output:
-# value1
-# value2
-# value3
+# Count entries
+shelve len
+# Output: 1
 ```
 
-```shell
-# Using as a TODO list
-shelve put `date +%s` "Do the laundry"
+### Listing and Filtering
 
+```sh
+# List all items
+shelve items
+# Output:
+# key1 value1
+
+# List keys
+shelve keys
+# Output:
+# key1
+
+# List values
+shelve values
+# Output:
+# value1
+
+# Filtered listing
+shelve items -start "key1" -end "key9" -limit 10
+```
+
+### Use Case: TODO List
+
+```sh
+# Add a task with a timestamp key
+shelve put $(date +%s) "Do the laundry"
+
+# View all tasks (sorted)
 shelve items | sort
 ```
 
 ---
 
-> ⚠️ **Codec Support**
+## ⚠️ Codec Compatibility
+
+> The CLI is most compatible with **JSON-based shelves**.
 >
-> The `shelve-cmd` CLI is designed to work best with **JSON-based shelves**.
+> Using codecs like `gob` or `string` may result in limited or unreadable output, especially if values are complex Go structs.
 >
-> If your application uses the default JSON codec, you'll be able to inspect and manipulate entries directly in the CLI.
->
-> If you're using **Gob or a custom codec**, CLI support may be limited or unavailable due to type introspection limitations.
->
-> To ensure CLI compatibility, we recommend using the default JSON codec:
->
-> ```go
-> db, _ := shelve.Open("data.shelve") // Uses JSON
-> ```
+> To ensure full CLI support, prefer the default JSON codec:
+
+```go
+db, _ := shelve.Open("my.shelve") // Uses JSON codec by default
+```
