@@ -4,7 +4,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"log/slog"
 	"os"
 
 	"github.com/lucmq/go-shelve/shelve"
@@ -15,10 +14,14 @@ type (
 	V = string
 )
 
+var exitOnError = true
+
 func main() {
 	if err := run(); err != nil {
-		slog.Error("run failed", "error", err)
-		os.Exit(1)
+		_, _ = fmt.Fprintf(os.Stderr, "run failed: %v", err)
+		if exitOnError {
+			os.Exit(1)
+		}
 	}
 }
 
