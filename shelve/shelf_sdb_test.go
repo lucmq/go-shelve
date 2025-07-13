@@ -215,6 +215,25 @@ func TestShelf_SDB(t *testing.T) {
 		ShelfSDBTests[[12]byte, TestStruct](t, shelf, keys, values)
 		ShelfSDBTests_Iteration[[12]byte, TestStruct](t, shelf, keys, values)
 	})
+
+	t.Run("Shelf[time.Time, TestStruct]", func(t *testing.T) {
+		// Use time keys with small offsets to preserve ordering in iteration
+		base := time.Date(2023, 10, 20, 12, 0, 0, 0, time.UTC)
+		keys := []time.Time{
+			base,
+			base.Add(1 * time.Minute),
+			base.Add(2 * time.Minute),
+			base.Add(3 * time.Minute),
+		}
+		values := []TestStruct{
+			MakeTestStruct(), MakeTestStruct(), MakeTestStruct(), MakeTestStruct(),
+		}
+
+		shelf := OpenTestShelf[time.Time, TestStruct]
+
+		ShelfSDBTests[time.Time, TestStruct](t, shelf, keys, values)
+		ShelfSDBTests_Iteration[time.Time, TestStruct](t, shelf, keys, values)
+	})
 }
 
 // ShelfSDBTests provides a set of tests for Shelf with the sdb database. The

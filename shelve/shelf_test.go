@@ -161,6 +161,19 @@ func TestShelf_Open(t *testing.T) {
 		}
 	})
 
+	t.Run("With Gob codec", func(t *testing.T) {
+		shelf, err := Open[string, int](TestDirectory, WithCodec(GobCodec()))
+		if err != nil {
+			t.Fatalf("Error opening shelf: %v", err)
+		}
+		if shelf == nil {
+			t.Fatalf("Expected shelf to be non-nil")
+		}
+		if _, ok := shelf.codec.(gobCodec); !ok {
+			t.Errorf("Expected codec to be gobCodec")
+		}
+	})
+
 	t.Run("Error opening default database", func(t *testing.T) {
 		// Keep the path empty to trigger an error
 		shelf, err := Open[string, int]("")
@@ -210,9 +223,9 @@ func TestShelf_DefaultKeyCodec(t *testing.T) {
 	})
 
 	t.Run("Struct keys", func(t *testing.T) {
-		shelf, _ := Open[struct{}, struct{}](TestDirectory)
-		if _, ok := shelf.keyCodec.(gobCodec); !ok {
-			t.Errorf("Expected key codec to be gobCodec")
+		_, err := Open[struct{}, struct{}](TestDirectory)
+		if err == nil {
+			t.Errorf("Expected error opening shelf with struct key")
 		}
 	})
 }
