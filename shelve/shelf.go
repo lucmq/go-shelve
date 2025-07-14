@@ -49,7 +49,7 @@ type Yield[K, V any] func(key K, value V) (bool, error)
 // Stored values can be of arbitrary types, but the keys must be comparable.
 //
 // By default, values are encoded using the JSON codec, and keys using the
-// StringCodec.
+// TextCodec.
 //
 // For storage, the underlying database is an instance of the [sdb.DB]
 // ("shelve-db") key-value store.
@@ -103,7 +103,7 @@ func WithCodec(c Codec) Option {
 // WithKeyCodec specifies the Codec to use for encoding keys.
 // By default, keys of type string, boolean, integer (signed or unsigned),
 // float, [N]byte arrays (e.g., [12]byte), or types that implement
-// [encoding.TextMarshaler] are encoded using [StringCodec].
+// [encoding.TextMarshaler] are encoded using [TextCodec].
 //
 // Additional Codecs can be found in the packages in [driver/encoding].
 //
@@ -362,17 +362,17 @@ func defaultKeyCodec(key any) (Codec, error) {
 		int, int8, int16, int32, int64,
 		uint, uint8, uint16, uint32, uint64,
 		float32, float64:
-		return StringCodec(), nil
+		return TextCodec(), nil
 	default:
 		// Support TextMarshaler types
 		if _, ok := key.(encoding.TextMarshaler); ok {
-			return StringCodec(), nil
+			return TextCodec(), nil
 		}
 
 		// Handle [N]byte arrays via reflection
 		val := reflect.ValueOf(key)
 		if val.Kind() == reflect.Array && val.Type().Elem().Kind() == reflect.Uint8 {
-			return StringCodec(), nil
+			return TextCodec(), nil
 		}
 
 		return nil, fmt.Errorf("unsupported key type %T: must explicitly set a key codec", key)

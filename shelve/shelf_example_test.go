@@ -52,7 +52,7 @@ func ExampleOpen_withDatabase() {
 		path,
 		shelve.WithDatabase(db),
 		shelve.WithCodec(shelve.JSONCodec()),
-		shelve.WithKeyCodec(shelve.StringCodec()),
+		shelve.WithKeyCodec(shelve.TextCodec()),
 	)
 	if err != nil {
 		log.Printf("open: %s", err)

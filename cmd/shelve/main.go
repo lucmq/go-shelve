@@ -84,7 +84,7 @@ func getCodec(name string) (shelve.Codec, error) {
 	case "json":
 		return shelve.JSONCodec(), nil
 	case "text":
-		return shelve.StringCodec(), nil
+		return shelve.TextCodec(), nil
 	default:
 		return nil, fmt.Errorf("unsupported codec: %s", name)
 	}

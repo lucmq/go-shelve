@@ -16,7 +16,7 @@ import (
 // The go-shelve module natively supports the following codecs:
 //   - [GobCodec]: Returns a Codec for the [gob] format.
 //   - [JSONCodec]: Returns a Codec for the [json] format.
-//   - [StringCodec]: Returns a Codec for values that can be represented as
+//   - [TextCodec]: Returns a Codec for values that can be represented as
 //     plain text.
 //
 // Additional codecs are provided by the packages in [driver/encoding].
@@ -41,8 +41,8 @@ func GobCodec() Codec { return gobCodec{} }
 // JSONCodec Returns a Codec for the JSON format.
 func JSONCodec() Codec { return jsonCodec{} }
 
-// StringCodec Returns a Codec for values that can be represented as plain text.
-func StringCodec() Codec { return stringCodec{} }
+// TextCodec Returns a Codec for values that can be represented as plain text.
+func TextCodec() Codec { return textCodec{} }
 
 // Gob Codec
 
@@ -79,15 +79,15 @@ func (jsonCodec) Decode(data []byte, value any) error {
 	return json.Unmarshal(data, value)
 }
 
-// String Codec
+// Text Codec
 
-// stringCodec encodes scalar values, fixed-size byte arrays, and types that
+// textCodec encodes scalar values, fixed-size byte arrays, and types that
 // implement encoding.TextMarshaler.
 // It supports strings, booleans, integers, floats, and [N]byte arrays (encoded
 // as hex).
-type stringCodec struct{}
+type textCodec struct{}
 
-func (stringCodec) Encode(value any) ([]byte, error) {
+func (textCodec) Encode(value any) ([]byte, error) {
 	switch v := value.(type) {
 	case string:
 		return []byte(v), nil
@@ -123,11 +123,11 @@ func (stringCodec) Encode(value any) ([]byte, error) {
 		if encoded, ok := encodeFixedByteArray(value); ok {
 			return encoded, nil
 		}
-		return nil, fmt.Errorf("stringCodec: unsupported type %T", value)
+		return nil, fmt.Errorf("textCodec: unsupported type %T", value)
 	}
 }
 
-func (stringCodec) Decode(data []byte, value any) error {
+func (textCodec) Decode(data []byte, value any) error {
 	str := string(data)
 
 	switch v := value.(type) {
@@ -193,7 +193,7 @@ func (stringCodec) Decode(data []byte, value any) error {
 		if err := decodeFixedByteArray(data, value); err == nil {
 			return nil
 		}
-		return fmt.Errorf("stringCodec: unsupported decode target %T", value)
+		return fmt.Errorf("textCodec: unsupported decode target %T", value)
 	}
 }
 
