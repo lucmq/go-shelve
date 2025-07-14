@@ -9,17 +9,14 @@ import (
 	"github.com/lucmq/go-shelve/shelve"
 )
 
-type (
-	K = string
-	V = string
-)
+type Shelf = shelve.Shelf[string, string]
 
 var exitOnError = true
 var exit = os.Exit
 
 func main() {
 	if err := run(); err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "run failed: %v", err)
+		_, _ = fmt.Fprintf(os.Stderr, "run failed: %v\n", err)
 		if exitOnError {
 			exit(1)
 		}
@@ -48,7 +45,7 @@ func run() error {
 	}
 
 	// Open the shelve store
-	store, err := shelve.Open[K, V](
+	store, err := shelve.Open[string, string](
 		*storePath,
 		shelve.WithCodec(codec),
 	)
@@ -94,7 +91,7 @@ func getCodec(name string) (shelve.Codec, error) {
 }
 
 // Put key-value pairs.
-func handlePut(store *shelve.Shelf[K, V], args []string) error {
+func handlePut(store *Shelf, args []string) error {
 	if len(args) < 2 || len(args)%2 != 0 {
 		return errors.New("usage: shelve put <key> <value> [<key> <value> ...]")
 	}
@@ -112,7 +109,7 @@ func handlePut(store *shelve.Shelf[K, V], args []string) error {
 }
 
 // Get value by key.
-func handleGet(store *shelve.Shelf[K, V], args []string) error {
+func handleGet(store *Shelf, args []string) error {
 	if len(args) < 1 {
 		return errors.New("usage: shelve get <key>")
 	}
@@ -128,7 +125,7 @@ func handleGet(store *shelve.Shelf[K, V], args []string) error {
 }
 
 // Check if a key exists.
-func handleHas(store *shelve.Shelf[K, V], args []string) error {
+func handleHas(store *Shelf, args []string) error {
 	if len(args) < 1 {
 		return errors.New("usage: shelve has <key>")
 	}
@@ -148,7 +145,7 @@ func handleHas(store *shelve.Shelf[K, V], args []string) error {
 }
 
 // Delete a key.
-func handleDelete(store *shelve.Shelf[K, V], args []string) error {
+func handleDelete(store *Shelf, args []string) error {
 	if len(args) < 1 {
 		return errors.New("usage: shelve delete <key>")
 	}
@@ -163,7 +160,7 @@ func handleDelete(store *shelve.Shelf[K, V], args []string) error {
 }
 
 // Get total number of keys.
-func handleLen(store *shelve.Shelf[K, V]) error {
+func handleLen(store *Shelf) error {
 	count := store.Len()
 	if count == -1 {
 		return errors.New("failed to get length")
@@ -174,7 +171,7 @@ func handleLen(store *shelve.Shelf[K, V]) error {
 }
 
 // List items, keys, or values with optional filters.
-func handleItems(store *shelve.Shelf[K, V], mode string, args []string) error {
+func handleItems(store *Shelf, mode string, args []string) error {
 	fs := flag.NewFlagSet(mode, flag.ContinueOnError)
 	start := fs.String("start", "", "Start key (inclusive)")
 	end := fs.String("end", "", "End key (exclusive)")
@@ -197,8 +194,8 @@ func handleItems(store *shelve.Shelf[K, V], mode string, args []string) error {
 }
 
 // Helper: Print key-value pairs.
-func printItems(store *shelve.Shelf[K, V], start, end *string, limit int) error {
-	return store.Items(start, limit, shelve.Asc, func(key K, value V) (bool, error) {
+func printItems(store *Shelf, start, end *string, limit int) error {
+	return store.Items(start, limit, shelve.Asc, func(key, value string) (bool, error) {
 		if *end != "" && key >= *end {
 			return false, nil
 		}
@@ -208,8 +205,8 @@ func printItems(store *shelve.Shelf[K, V], start, end *string, limit int) error 
 }
 
 // Helper: Print keys only.
-func printKeys(store *shelve.Shelf[K, V], start, end *string, limit int) error {
-	return store.Keys(start, limit, shelve.Asc, func(key K, _ V) (bool, error) {
+func printKeys(store *Shelf, start, end *string, limit int) error {
+	return store.Keys(start, limit, shelve.Asc, func(key, _ string) (bool, error) {
 		if *end != "" && key >= *end {
 			return false, nil
 		}
@@ -219,8 +216,8 @@ func printKeys(store *shelve.Shelf[K, V], start, end *string, limit int) error {
 }
 
 // Helper: Print values only.
-func printValues(store *shelve.Shelf[K, V], start, end *string, limit int) error {
-	return store.Items(start, limit, shelve.Asc, func(key K, value V) (bool, error) {
+func printValues(store *Shelf, start, end *string, limit int) error {
+	return store.Items(start, limit, shelve.Asc, func(key, value string) (bool, error) {
 		if *end != "" && key >= *end {
 			return false, nil
 		}

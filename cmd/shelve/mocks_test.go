@@ -9,8 +9,8 @@ import (
 
 var TestError = errors.New("test error")
 
-func newFakeShelve(t *testing.T) *shelve.Shelf[K, V] {
-	s, err := shelve.Open[K, V](
+func newFakeShelve(t *testing.T) *Shelf {
+	s, err := shelve.Open[string, string](
 		dbPath,
 		shelve.WithKeyCodec(fakeCodec{}),
 		shelve.WithDatabase(fakeDB{}),

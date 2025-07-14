@@ -11,7 +11,7 @@ go install github.com/lucmq/go-shelve/cmd/shelve@latest
 ## Key Features
 
 * Simple CLI for interacting with shelve stores
-* Supports multiple codecs: `json`, `gob`, and `string`
+* Supports multiple codecs: `json`, `gob`, and `text`
 * Filtered listing (`--start`, `--end`, `--limit`)
 * Composable with shell tools (e.g. `sort`, `grep`)
 * Defaults to JSON serialization for compatibility and readability
@@ -19,7 +19,7 @@ go install github.com/lucmq/go-shelve/cmd/shelve@latest
 ## Limitations
 
 * Currently assumes `string` keys and values when used from the CLI (`shelve.Shelf[string, string]`)
-* Only the default database (`SDB`) is supported
+* Only the default shelf backend is used (no plug-in store drivers yet)
 * Best used with the **JSON codec** for interoperability
 
 ---
@@ -107,6 +107,17 @@ shelve put $(date +%s) "Do the laundry"
 # View all tasks (sorted)
 shelve items | sort
 ```
+
+---
+
+## Storage Format
+
+Shelves are stored as key-sorted files under the path specified by `-path`. By default, this is `.store` in the current directory.
+
+Each key-value entry is serialized using the selected codec (e.g., JSON). The store maintains a persistent, ordered key-value log on disk.
+
+* Text-based codecs like `json` allow human-readable inspection
+* You can back up, copy, or version `.store` directories safely
 
 ---
 
