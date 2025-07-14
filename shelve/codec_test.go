@@ -108,7 +108,7 @@ func TestJsonCodec_Decode(t *testing.T) {
 
 // String
 
-func TestStringCodec_Encode(t *testing.T) {
+func TestTextCodec_Encode(t *testing.T) {
 	now := time.Date(2023, 10, 20, 15, 0, 0, 0, time.UTC)
 
 	tests := []struct {
@@ -142,7 +142,7 @@ func TestStringCodec_Encode(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			var codec stringCodec
+			var codec textCodec
 			data, err := codec.Encode(tc.input)
 
 			if err != nil {
@@ -155,15 +155,15 @@ func TestStringCodec_Encode(t *testing.T) {
 	}
 }
 
-func TestStringCodec_EncodeError(t *testing.T) {
-	var codec stringCodec
+func TestTextCodec_EncodeError(t *testing.T) {
+	var codec textCodec
 	_, err := codec.Encode(func() {})
 	if err == nil {
 		t.Errorf("Encode() failed: got %v, want %v", err, "error")
 	}
 }
 
-func TestStringCodec_Decode(t *testing.T) {
+func TestTextCodec_Decode(t *testing.T) {
 	now := time.Date(2023, 10, 20, 15, 0, 0, 0, time.UTC)
 
 	tests := []struct {
@@ -201,7 +201,7 @@ func TestStringCodec_Decode(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			var codec stringCodec
+			var codec textCodec
 
 			// Encode
 			data, err := codec.Encode(tc.input)

@@ -189,36 +189,36 @@ func TestShelf_Open(t *testing.T) {
 func TestShelf_DefaultKeyCodec(t *testing.T) {
 	t.Run("Int keys", func(t *testing.T) {
 		shelf, _ := Open[int, struct{}](TestDirectory)
-		if _, ok := shelf.keyCodec.(stringCodec); !ok {
-			t.Errorf("Expected key codec to be stringCodec")
+		if _, ok := shelf.keyCodec.(textCodec); !ok {
+			t.Errorf("Expected key codec to be textCodec")
 		}
 	})
 
 	t.Run("Int64 keys", func(t *testing.T) {
 		shelf, _ := Open[int, struct{}](TestDirectory)
-		if _, ok := shelf.keyCodec.(stringCodec); !ok {
-			t.Errorf("Expected key codec to be stringCodec")
+		if _, ok := shelf.keyCodec.(textCodec); !ok {
+			t.Errorf("Expected key codec to be textCodec")
 		}
 	})
 
 	t.Run("Uint keys", func(t *testing.T) {
 		shelf, _ := Open[uint, struct{}](TestDirectory)
-		if _, ok := shelf.keyCodec.(stringCodec); !ok {
-			t.Errorf("Expected key codec to be stringCodec")
+		if _, ok := shelf.keyCodec.(textCodec); !ok {
+			t.Errorf("Expected key codec to be textCodec")
 		}
 	})
 
 	t.Run("Uint64 keys", func(t *testing.T) {
 		shelf, _ := Open[uint64, struct{}](TestDirectory)
-		if _, ok := shelf.keyCodec.(stringCodec); !ok {
-			t.Errorf("Expected key codec to be stringCodec")
+		if _, ok := shelf.keyCodec.(textCodec); !ok {
+			t.Errorf("Expected key codec to be textCodec")
 		}
 	})
 
 	t.Run("String keys", func(t *testing.T) {
 		shelf, _ := Open[string, struct{}](TestDirectory)
-		if _, ok := shelf.keyCodec.(stringCodec); !ok {
-			t.Errorf("Expected key codec to be stringCodec")
+		if _, ok := shelf.keyCodec.(textCodec); !ok {
+			t.Errorf("Expected key codec to be textCodec")
 		}
 	})
 
