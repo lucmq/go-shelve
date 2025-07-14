@@ -6,7 +6,7 @@
 // This package is inspired by the `shelve` module from the Python standard library
 // and aims to provide a similar set of functionalities.
 //
-// By default, a Shelf serializes data using the Gob format and stores it using `sdb`
+// By default, a Shelf serializes data using the JSON format and stores it using `sdb`
 // (for "shelve-db"), a simple key-value storage created for this project. This
 // database should be good enough for a broad range of applications, but the modules
 // in [go-shelve/driver] provide additional options for configuring the `Shelf` with
@@ -16,7 +16,9 @@
 package shelve
 
 import (
+	"encoding"
 	"fmt"
+	"reflect"
 
 	"github.com/lucmq/go-shelve/sdb"
 )
@@ -46,16 +48,14 @@ type Yield[K, V any] func(key K, value V) (bool, error)
 //
 // Stored values can be of arbitrary types, but the keys must be comparable.
 //
-// The values are encoded as [Gob], and keys, if they are strings or integers,
-// are encoded as strings. Otherwise, they will also be encoded as Gob.
+// By default, values are encoded using the JSON codec, and keys using the
+// StringCodec.
 //
 // For storage, the underlying database is an instance of the [sdb.DB]
 // ("shelve-db") key-value store.
 //
 // The underlying storage and codec Shelf uses can be configured with the
 // [Option] functions.
-//
-// [Gob]: https://pkg.go.dev/encoding/gob
 type Shelf[K comparable, V any] struct {
 	db       DB
 	codec    Codec
@@ -87,8 +87,8 @@ func WithDatabase(db DB) Option {
 	}
 }
 
-// WithCodec specifies the Codec to use. By default, a codec for the Gob format
-// from the standard library ([encoding/gob]) is used.
+// WithCodec specifies the Codec to use. By default, a codec for the JSON format
+// is used.
 //
 // Additional Codecs can be found in the packages in [driver/encoding].
 //
@@ -100,9 +100,10 @@ func WithCodec(c Codec) Option {
 	}
 }
 
-// WithKeyCodec specifies the Codec to use with keys. By default, if the key is
-// a string or an integer type (both signed and unsigned), the [StringCodec] is
-// used. Otherwise, keys are encoded as Gob ([encoding/gob]).
+// WithKeyCodec specifies the Codec to use for encoding keys.
+// By default, keys of type string, boolean, integer (signed or unsigned),
+// float, [N]byte arrays (e.g., [12]byte), or types that implement
+// [encoding.TextMarshaler] are encoded using [StringCodec].
 //
 // Additional Codecs can be found in the packages in [driver/encoding].
 //
@@ -125,9 +126,14 @@ func Open[K comparable, V any](path string, opts ...Option) (
 	error,
 ) {
 	var k K
+	keyCodec, err := defaultKeyCodec(k)
+	if err != nil {
+		return nil, err
+	}
+
 	o := options{
-		Codec:    GobCodec(),
-		KeyCodec: defaultKeyCodec(k),
+		Codec:    JSONCodec(),
+		KeyCodec: keyCodec,
 	}
 	for _, option := range opts {
 		option(&o)
@@ -349,15 +355,26 @@ func (s *Shelf[K, V]) iterate(
 
 // Helpers
 
-func defaultKeyCodec(key any) Codec {
+func defaultKeyCodec(key any) (Codec, error) {
 	switch key.(type) {
-	case int8, int16, int32, int64, int:
-		return StringCodec()
-	case uint8, uint16, uint32, uint64, uint:
-		return StringCodec()
-	case string:
-		return StringCodec()
+	case string,
+		bool,
+		int, int8, int16, int32, int64,
+		uint, uint8, uint16, uint32, uint64,
+		float32, float64:
+		return StringCodec(), nil
 	default:
-		return GobCodec()
+		// Support TextMarshaler types
+		if _, ok := key.(encoding.TextMarshaler); ok {
+			return StringCodec(), nil
+		}
+
+		// Handle [N]byte arrays via reflection
+		val := reflect.ValueOf(key)
+		if val.Kind() == reflect.Array && val.Type().Elem().Kind() == reflect.Uint8 {
+			return StringCodec(), nil
+		}
+
+		return nil, fmt.Errorf("unsupported key type %T: must explicitly set a key codec", key)
 	}
 }

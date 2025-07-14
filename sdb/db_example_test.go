@@ -1,8 +1,7 @@
 package sdb_test
 
 import (
-	"bytes"
-	"encoding/gob"
+	"encoding/json"
 	"log"
 	"os"
 	"path/filepath"
@@ -33,16 +32,15 @@ func Example() {
 		Active:   true,
 	}
 
-	// Encode data as gob
-	data := new(bytes.Buffer)
-	enc := gob.NewEncoder(data)
-	if err = enc.Encode(item); err != nil {
-		log.Printf("encode gob: %s", err)
+	// Encode data as json
+	data, err := json.Marshal(item)
+	if err != nil {
+		log.Printf("marshal json: %s", err)
 		return
 	}
 
 	// Save the data
-	err = db.Put([]byte("apple"), data.Bytes())
+	err = db.Put([]byte("apple"), data)
 	if err != nil {
 		log.Printf("put: %s", err)
 		return

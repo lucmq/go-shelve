@@ -68,7 +68,7 @@ func main() {
 ```
 
 ### Custom Database and Codec
-By default, a `Shelf` serializes data using the Gob format and stores it using
+By default, a `Shelf` serializes data using the JSON format and stores it using
 `sdb` (for "shelve-db"), a simple key-value storage created for this project.
 
 This database should be suitable for a wide range of applications, but the
