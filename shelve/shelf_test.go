@@ -284,7 +284,7 @@ func TestShelf_Sync(t *testing.T) {
 func TestShelf_Has(t *testing.T) {
 	t.Run("Has succeeds", func(t *testing.T) {
 		var db MockDB
-		db.HasFunc = func(key []byte) (bool, error) {
+		db.HasFunc = func(_ []byte) (bool, error) {
 			return true, nil
 		}
 		shelf, _ := Open[string, int](
@@ -324,7 +324,7 @@ func TestShelf_Has(t *testing.T) {
 
 	t.Run("DB error", func(t *testing.T) {
 		var db MockDB
-		db.HasFunc = func(key []byte) (bool, error) {
+		db.HasFunc = func(_ []byte) (bool, error) {
 			return false, TestError
 		}
 		shelf, _ := Open[string, int](
@@ -345,7 +345,7 @@ func TestShelf_Has(t *testing.T) {
 	t.Run("Codec error", func(t *testing.T) {
 		var db MockDB
 		var codec MockCodec
-		codec.EncodeFunc = func(key any) ([]byte, error) {
+		codec.EncodeFunc = func(_ any) ([]byte, error) {
 			return nil, TestError
 		}
 		shelf, _ := Open[string, int](
@@ -369,7 +369,7 @@ func TestShelf_Has(t *testing.T) {
 func TestShelf_Get(t *testing.T) {
 	t.Run("Get succeeds", func(t *testing.T) {
 		var db MockDB
-		db.GetFunc = func(key []byte) ([]byte, error) {
+		db.GetFunc = func(_ []byte) ([]byte, error) {
 			return []byte("value"), nil
 		}
 		shelf := NewTestShelf(t, WithDatabase(&db))
@@ -390,7 +390,7 @@ func TestShelf_Get(t *testing.T) {
 
 	t.Run("Get fails", func(t *testing.T) {
 		var db MockDB
-		db.GetFunc = func(key []byte) ([]byte, error) {
+		db.GetFunc = func(_ []byte) ([]byte, error) {
 			return nil, TestError
 		}
 		shelf := NewTestShelf(t, WithDatabase(&db))
@@ -411,7 +411,7 @@ func TestShelf_Get(t *testing.T) {
 
 	t.Run("DB error", func(t *testing.T) {
 		var db MockDB
-		db.GetFunc = func(key []byte) ([]byte, error) {
+		db.GetFunc = func(_ []byte) ([]byte, error) {
 			return nil, TestError
 		}
 		shelf := NewTestShelf(t, WithDatabase(&db))
@@ -432,7 +432,7 @@ func TestShelf_Get(t *testing.T) {
 
 	t.Run("Codec error", func(t *testing.T) {
 		var codec MockCodec
-		codec.EncodeFunc = func(key any) ([]byte, error) {
+		codec.EncodeFunc = func(_ any) ([]byte, error) {
 			return nil, TestError
 		}
 		shelf := NewTestShelf(t, WithKeyCodec(&codec))
@@ -465,7 +465,7 @@ func TestShelf_Put(t *testing.T) {
 
 	t.Run("Encode key error", func(t *testing.T) {
 		var codec MockCodec
-		codec.EncodeFunc = func(value any) ([]byte, error) {
+		codec.EncodeFunc = func(_ any) ([]byte, error) {
 			return nil, TestError
 		}
 		shelf := NewTestShelf(t, WithKeyCodec(&codec))
@@ -479,7 +479,7 @@ func TestShelf_Put(t *testing.T) {
 
 	t.Run("Encode value error", func(t *testing.T) {
 		var codec MockCodec
-		codec.EncodeFunc = func(value any) ([]byte, error) {
+		codec.EncodeFunc = func(_ any) ([]byte, error) {
 			return nil, TestError
 		}
 		shelf := NewTestShelf(t, WithCodec(&codec))
@@ -493,7 +493,7 @@ func TestShelf_Put(t *testing.T) {
 
 	t.Run("DB error", func(t *testing.T) {
 		var db MockDB
-		db.PutFunc = func(key []byte, value []byte) error {
+		db.PutFunc = func(_ []byte, _ []byte) error {
 			return TestError
 		}
 		shelf := NewTestShelf(t, WithDatabase(&db))
@@ -519,7 +519,7 @@ func TestShelf_Delete(t *testing.T) {
 
 	t.Run("DB error", func(t *testing.T) {
 		var db MockDB
-		db.DeleteFunc = func(key []byte) error {
+		db.DeleteFunc = func(_ []byte) error {
 			return TestError
 		}
 		shelf := NewTestShelf(t, WithDatabase(&db))
@@ -533,7 +533,7 @@ func TestShelf_Delete(t *testing.T) {
 
 	t.Run("Encode key error", func(t *testing.T) {
 		var codec MockCodec
-		codec.EncodeFunc = func(value any) ([]byte, error) {
+		codec.EncodeFunc = func(_ any) ([]byte, error) {
 			return nil, TestError
 		}
 		shelf := NewTestShelf(t, WithKeyCodec(&codec))
@@ -670,13 +670,13 @@ func TestShelf_Items(t *testing.T) {
 func TestShelf_Items_Error(t *testing.T) {
 	t.Run("DB error", func(t *testing.T) {
 		var db MockDB
-		db.ItemsFunc = func(start []byte, order int, fn YieldData) error {
+		db.ItemsFunc = func(_ []byte, _ int, _ YieldData) error {
 			return TestError
 		}
 		shelf := NewTestShelf(t, WithDatabase(&db))
 		start := ""
 
-		err := shelf.Items(&start, All, Asc, func(key, value string) (
+		err := shelf.Items(&start, All, Asc, func(_, _ string) (
 			bool, error,
 		) {
 			return true, nil
@@ -697,7 +697,7 @@ func TestShelf_Items_Error(t *testing.T) {
 		shelf := NewTestShelf(t, WithDatabase(&db))
 		start := ""
 
-		err := shelf.Items(&start, All, Asc, func(key, value string) (
+		err := shelf.Items(&start, All, Asc, func(_, _ string) (
 			bool, error,
 		) {
 			return true, TestError
@@ -720,7 +720,7 @@ func TestShelf_Items_Error(t *testing.T) {
 		}
 		shelf := NewTestShelf(t, WithDatabase(&db), WithKeyCodec(&codec))
 
-		err := shelf.Items(&start, All, Asc, func(key, value string) (
+		err := shelf.Items(&start, All, Asc, func(_, _ string) (
 			bool, error,
 		) {
 			return true, nil
@@ -739,13 +739,13 @@ func TestShelf_Items_Error(t *testing.T) {
 			"key-3": "value-3", "key-4": "value-4",
 		})
 		db.ItemsFunc = NewMockItemsFunc(seed)
-		codec.DecodeFunc = func(data []byte, value any) error {
+		codec.DecodeFunc = func(_ []byte, _ any) error {
 			return TestError
 		}
 		shelf := NewTestShelf(t, WithDatabase(&db), WithKeyCodec(&codec))
 		start := ""
 
-		err := shelf.Items(&start, All, Asc, func(key, value string) (
+		err := shelf.Items(&start, All, Asc, func(_, _ string) (
 			bool, error,
 		) {
 			return true, nil
@@ -764,13 +764,13 @@ func TestShelf_Items_Error(t *testing.T) {
 			"key-3": "value-3", "key-4": "value-4",
 		})
 		db.ItemsFunc = NewMockItemsFunc(seed)
-		codec.DecodeFunc = func(data []byte, value any) error {
+		codec.DecodeFunc = func(_ []byte, _ any) error {
 			return TestError
 		}
 		shelf := NewTestShelf(t, WithDatabase(&db), WithCodec(&codec))
 		start := ""
 
-		err := shelf.Items(&start, All, Asc, func(key, value string) (
+		err := shelf.Items(&start, All, Asc, func(_, _ string) (
 			bool, error,
 		) {
 			return true, nil
@@ -846,7 +846,7 @@ func TestShelf_Keys(t *testing.T) {
 			}
 
 			gotKeys := make([]string, 0)
-			err := shelf.Keys(start, tt.n, tt.order, func(key, value string) (
+			err := shelf.Keys(start, tt.n, tt.order, func(key, _ string) (
 				bool, error,
 			) {
 				gotKeys = append(gotKeys, key)
@@ -867,13 +867,13 @@ func TestShelf_Keys(t *testing.T) {
 func TestShelf_Keys_Error(t *testing.T) {
 	t.Run("DB Items error", func(t *testing.T) {
 		var db MockDB
-		db.ItemsFunc = func(start []byte, order int, fn YieldData) error {
+		db.ItemsFunc = func(_ []byte, _ int, _ YieldData) error {
 			return TestError
 		}
 		shelf := NewTestShelf(t, WithDatabase(&db))
 		start := ""
 
-		err := shelf.Keys(&start, All, Asc, func(key, value string) (
+		err := shelf.Keys(&start, All, Asc, func(_, _ string) (
 			bool, error,
 		) {
 			return true, nil
@@ -896,7 +896,7 @@ func TestShelf_Keys_Error(t *testing.T) {
 		}
 		shelf := NewTestShelf(t, WithDatabase(&db), WithKeyCodec(&codec))
 
-		err := shelf.Keys(&start, All, Asc, func(key, value string) (
+		err := shelf.Keys(&start, All, Asc, func(_, _ string) (
 			bool, error,
 		) {
 			return true, nil
@@ -921,7 +921,7 @@ func TestShelf_Keys_Error(t *testing.T) {
 		shelf := NewTestShelf(t, WithDatabase(&db), WithKeyCodec(&codec))
 		start := ""
 
-		err := shelf.Keys(&start, All, Asc, func(key, value string) (
+		err := shelf.Keys(&start, All, Asc, func(_, _ string) (
 			bool, error,
 		) {
 			return true, nil
@@ -997,7 +997,7 @@ func TestShelf_Values(t *testing.T) {
 			}
 
 			values := make([]string, 0)
-			err := shelf.Values(start, tt.n, tt.order, func(key, value string) (
+			err := shelf.Values(start, tt.n, tt.order, func(_, value string) (
 				bool, error,
 			) {
 				values = append(values, value)
@@ -1018,13 +1018,13 @@ func TestShelf_Values(t *testing.T) {
 func TestShelf_Values_Error(t *testing.T) {
 	t.Run("DB Items error", func(t *testing.T) {
 		var db MockDB
-		db.ItemsFunc = func(start []byte, order int, fn YieldData) error {
+		db.ItemsFunc = func(_ []byte, _ int, _ YieldData) error {
 			return TestError
 		}
 		shelf := NewTestShelf(t, WithDatabase(&db))
 		start := ""
 
-		err := shelf.Values(&start, All, Asc, func(key, value string) (
+		err := shelf.Values(&start, All, Asc, func(_, _ string) (
 			bool, error,
 		) {
 			return true, nil
@@ -1047,7 +1047,7 @@ func TestShelf_Values_Error(t *testing.T) {
 		}
 		shelf := NewTestShelf(t, WithDatabase(&db), WithKeyCodec(&codec))
 
-		err := shelf.Values(&start, All, Asc, func(key, value string) (
+		err := shelf.Values(&start, All, Asc, func(_, _ string) (
 			bool, error,
 		) {
 			return true, nil
@@ -1072,7 +1072,7 @@ func TestShelf_Values_Error(t *testing.T) {
 		shelf := NewTestShelf(t, WithDatabase(&db), WithCodec(&codec))
 		start := ""
 
-		err := shelf.Values(&start, All, Asc, func(key, value string) (
+		err := shelf.Values(&start, All, Asc, func(_, _ string) (
 			bool, error,
 		) {
 			return true, nil

@@ -607,7 +607,7 @@ func ShelfSDBTests_Iteration[K comparable, V any](
 		var (
 			actualKeys = make(map[K]struct{})
 		)
-		err := shelf.Items(&start, All, Asc, func(key K, value V) (
+		err := shelf.Items(&start, All, Asc, func(key K, _ V) (
 			bool, error,
 		) {
 			actualKeys[key] = struct{}{}
