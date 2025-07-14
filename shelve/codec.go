@@ -15,7 +15,7 @@ import (
 //
 // The go-shelve module natively supports the following codecs:
 //   - [GobCodec]: Returns a Codec for the [gob] format.
-//   - [JSONCodec]: Returns a Codec for the JSON format.
+//   - [JSONCodec]: Returns a Codec for the [json] format.
 //   - [StringCodec]: Returns a Codec for values that can be represented as
 //     plain text.
 //

@@ -101,7 +101,7 @@ func OpenTestShelf[K comparable, V any](t *testing.T) *Shelf[K, V] {
 	shelf, err := Open[K, V](
 		path,
 		WithDatabase(db),
-		WithCodec(&gobCodec{}),
+		WithCodec(&jsonCodec{}),
 	)
 	if err != nil {
 		t.Fatalf("open shelf: %s", err)

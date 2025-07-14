@@ -45,7 +45,7 @@ Commands:
 Options:
 
   -codec string
-        Value serialization format: gob, json, or string (default "json")
+        Value serialization format: gob, json, or text (default "json")
   -path string
         Path to the shelve store (default ".store")
 ```
@@ -114,7 +114,7 @@ shelve items | sort
 
 > The CLI is most compatible with **JSON-based shelves**.
 >
-> Using codecs like `gob` or `string` may result in limited or unreadable output, especially if values are complex Go structs.
+> Using codecs like `gob` or `text` may result in limited or unreadable output, especially if values are complex Go structs.
 >
 > To ensure full CLI support, prefer the default JSON codec:
 
