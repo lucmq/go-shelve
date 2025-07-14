@@ -673,7 +673,7 @@ func ShelfSDBTests_Iteration[K comparable, V any](
 		var (
 			actualValues []V
 		)
-		err := shelf.Items(&start, All, Asc, func(key K, value V) (
+		err := shelf.Items(&start, All, Asc, func(_ K, value V) (
 			bool, error,
 		) {
 			actualValues = append(actualValues, value)

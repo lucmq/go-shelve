@@ -304,7 +304,7 @@ func TestShelf_Has(t *testing.T) {
 
 	t.Run("Has fails", func(t *testing.T) {
 		var db MockDB
-		db.HasFunc = func(key []byte) (bool, error) {
+		db.HasFunc = func(_ []byte) (bool, error) {
 			return false, nil
 		}
 		shelf, _ := Open[string, int](
@@ -915,7 +915,7 @@ func TestShelf_Keys_Error(t *testing.T) {
 			"key-3": "value-3", "key-4": "value-4",
 		})
 		db.ItemsFunc = NewMockItemsFunc(seed)
-		codec.DecodeFunc = func(data []byte, value any) error {
+		codec.DecodeFunc = func(_ []byte, _ any) error {
 			return TestError
 		}
 		shelf := NewTestShelf(t, WithDatabase(&db), WithKeyCodec(&codec))
@@ -1066,7 +1066,7 @@ func TestShelf_Values_Error(t *testing.T) {
 			"key-3": "value-3", "key-4": "value-4",
 		})
 		db.ItemsFunc = NewMockItemsFunc(seed)
-		codec.DecodeFunc = func(data []byte, value any) error {
+		codec.DecodeFunc = func(_ []byte, _ any) error {
 			return TestError
 		}
 		shelf := NewTestShelf(t, WithDatabase(&db), WithCodec(&codec))
