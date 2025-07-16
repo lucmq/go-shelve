@@ -1,8 +1,8 @@
 github.com/boltdb/bolt v1.3.1 h1:JQmyP4ZBrce+ZQu0dY660FMfatumYDLun9hBCUVIkF4=
 github.com/boltdb/bolt v1.3.1/go.mod h1:clJnj/oiGkjum5o1McbSZDSLxVThjynRyGBgiAx27Ps=
-github.com/lucmq/go-shelve v1.0.11 h1:0+88qWgsovb9Z84tOsUmJ5CjcEMEASKJTC21X/CApg4=
-github.com/lucmq/go-shelve v1.0.11/go.mod h1:741s1MTCweRPxwi5N8+812HYFMCDf6VP0Ji/c5XFwC8=
-github.com/lucmq/go-shelve/driver v1.0.4 h1:M9tIFmKbnOMInmKIOPYLMJV41QbaJc3VHG/tUXLu/Nk=
-github.com/lucmq/go-shelve/driver v1.0.4/go.mod h1:cKIbSIyD777EM1vfbipY4wUe/2fUUSS498L1ALpGxds=
+github.com/lucmq/go-shelve v1.1.0 h1:I2JGOlMCgXfN1MR+Z4Vz4lpFzBD3eK3A4Sj1XblHHYA=
+github.com/lucmq/go-shelve v1.1.0/go.mod h1:741s1MTCweRPxwi5N8+812HYFMCDf6VP0Ji/c5XFwC8=
+github.com/lucmq/go-shelve/driver v1.1.0 h1:v5XMQNrX/HjUfsGE/aQhOQ7LQJG7Bq+smqBhaKYptg8=
+github.com/lucmq/go-shelve/driver v1.1.0/go.mod h1:zNXzIGGzgULb4ikiqaFlchjOmEK+TFTfKxduX/0SlK8=
 golang.org/x/sys v0.20.0 h1:Od9JTbYCk261bKm4M/mw7AklTlFYIa0bIp9BgSm1S8Y=
 golang.org/x/sys v0.20.0/go.mod h1:/VUhepiaJMQUp4+oa/7Zr1D23ma6VTLIYjOOTFZPUcA=
