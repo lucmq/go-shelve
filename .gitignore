@@ -24,3 +24,6 @@ go.work.sum
 # Editor files
 .idea/
 .vscode/
+
+# Other
+.store/

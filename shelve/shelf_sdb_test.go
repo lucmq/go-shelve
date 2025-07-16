@@ -101,7 +101,7 @@ func OpenTestShelf[K comparable, V any](t *testing.T) *Shelf[K, V] {
 	shelf, err := Open[K, V](
 		path,
 		WithDatabase(db),
-		WithCodec(&gobCodec{}),
+		WithCodec(&jsonCodec{}),
 	)
 	if err != nil {
 		t.Fatalf("open shelf: %s", err)
@@ -214,6 +214,25 @@ func TestShelf_SDB(t *testing.T) {
 
 		ShelfSDBTests[[12]byte, TestStruct](t, shelf, keys, values)
 		ShelfSDBTests_Iteration[[12]byte, TestStruct](t, shelf, keys, values)
+	})
+
+	t.Run("Shelf[time.Time, TestStruct]", func(t *testing.T) {
+		// Use time keys with small offsets to preserve ordering in iteration
+		base := time.Date(2023, 10, 20, 12, 0, 0, 0, time.UTC)
+		keys := []time.Time{
+			base,
+			base.Add(1 * time.Minute),
+			base.Add(2 * time.Minute),
+			base.Add(3 * time.Minute),
+		}
+		values := []TestStruct{
+			MakeTestStruct(), MakeTestStruct(), MakeTestStruct(), MakeTestStruct(),
+		}
+
+		shelf := OpenTestShelf[time.Time, TestStruct]
+
+		ShelfSDBTests[time.Time, TestStruct](t, shelf, keys, values)
+		ShelfSDBTests_Iteration[time.Time, TestStruct](t, shelf, keys, values)
 	})
 }
 
@@ -588,7 +607,7 @@ func ShelfSDBTests_Iteration[K comparable, V any](
 		var (
 			actualKeys = make(map[K]struct{})
 		)
-		err := shelf.Items(&start, All, Asc, func(key K, value V) (
+		err := shelf.Items(&start, All, Asc, func(key K, _ V) (
 			bool, error,
 		) {
 			actualKeys[key] = struct{}{}
@@ -654,7 +673,7 @@ func ShelfSDBTests_Iteration[K comparable, V any](
 		var (
 			actualValues []V
 		)
-		err := shelf.Items(&start, All, Asc, func(key K, value V) (
+		err := shelf.Items(&start, All, Asc, func(_ K, value V) (
 			bool, error,
 		) {
 			actualValues = append(actualValues, value)
