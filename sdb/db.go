@@ -78,6 +78,18 @@ import (
 )
 
 const (
+	// Asc and Desc can be used with the DB.Items method to make the
+	// iteration order ascending or descending respectively.
+	//
+	// They are just syntactic sugar to make the iteration order more
+	// explicit.
+	Asc = 1
+
+	// Desc is the opposite of Asc.
+	Desc = -1
+)
+
+const (
 	// DefaultCacheSize is the default size of the cache used to speed up the
 	// database operations. A value of -1 represents an unlimited cache.
 	DefaultCacheSize = -1
@@ -118,6 +130,7 @@ type DB struct {
 	mu       sync.RWMutex
 	path     string
 	metadata metadata
+	shards   []shard
 	cache    internal.Cache[cacheEntry]
 	closed   bool
 
@@ -125,7 +138,8 @@ type DB struct {
 	done chan struct{}
 	wg   sync.WaitGroup
 
-	syncWrites bool
+	maxFilesPerShard int64
+	syncWrites       bool
 
 	// autoSync enables the background sync loop. Can be removed if a WAL
 	// is adopted for consistency, since the WAL would handle the sync
@@ -142,12 +156,14 @@ type cacheEntry = []byte
 // Client applications must call DB.Close() when done with the database.
 func Open(path string, options ...Option) (*DB, error) {
 	db := DB{
-		path:       path,
-		metadata:   makeMetadata(),
-		cache:      internal.NewCache[cacheEntry](-1),
-		done:       make(chan struct{}),
-		syncWrites: false,
-		autoSync:   true,
+		path:             path,
+		metadata:         makeMetadata(),
+		shards:           []shard{{maxKey: sentinelDir}},
+		cache:            internal.NewCache[cacheEntry](-1),
+		done:             make(chan struct{}),
+		maxFilesPerShard: defaultMaxFilesPerShard,
+		syncWrites:       false,
+		autoSync:         true,
 	}
 
 	// Apply options.
@@ -155,8 +171,7 @@ func Open(path string, options ...Option) (*DB, error) {
 		option(&db)
 	}
 
-	err := initializeDatabase(&db)
-	if err != nil {
+	if err := initializeDatabase(&db); err != nil {
 		return nil, fmt.Errorf("initialize database: %w", err)
 	}
 
@@ -244,7 +259,9 @@ func (db *DB) Has(key []byte) (bool, error) {
 		return true, nil
 	}
 
-	_, err := os.Stat(keyPath(db, key))
+	path, _ := keyPath(db, key)
+
+	_, err := os.Stat(path)
 	if err != nil && !os.IsNotExist(err) {
 		return false, fmt.Errorf("stat: %w", err)
 	}
@@ -267,7 +284,9 @@ func (db *DB) Get(key []byte) ([]byte, error) {
 		return v, nil
 	}
 
-	value, err := os.ReadFile(keyPath(db, key))
+	path, _ := keyPath(db, key)
+
+	value, err := os.ReadFile(path)
 	if err != nil && !os.IsNotExist(err) {
 		return nil, fmt.Errorf("read file: %w", err)
 	}
@@ -297,15 +316,25 @@ func (db *DB) Put(key, value []byte) error {
 		return ErrDatabaseClosed
 	}
 
-	updated, err := putPath(db, keyPath(db, key), value)
+	path, shardID := keyPath(db, key)
+	sh := &db.shards[shardID]
+
+	updated, err := putPath(db, path, value)
 	if err != nil {
 		return fmt.Errorf("put path: %w", err)
 	}
 
 	if !updated {
+		sh.count++
 		db.metadata.TotalEntries++
 	}
 	db.metadata.Generation++
+
+	if int64(sh.count) > db.maxFilesPerShard {
+		if err = db.splitShard(shardID); err != nil {
+			return fmt.Errorf("split shard: %w", err)
+		}
+	}
 
 	// Cache aside
 	db.cache.Put(string(key), value)
@@ -338,8 +367,11 @@ func (db *DB) Delete(key []byte) error {
 		return ErrDatabaseClosed
 	}
 
+	path, shardID := keyPath(db, key)
+	sh := &db.shards[shardID]
+
 	var deleted bool
-	err := os.Remove(keyPath(db, key))
+	err := os.Remove(path)
 	if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("remove: %w", err)
 	}
@@ -348,6 +380,7 @@ func (db *DB) Delete(key []byte) error {
 	}
 
 	if deleted {
+		sh.count--
 		db.metadata.TotalEntries--
 	}
 	db.metadata.Generation++
@@ -359,8 +392,17 @@ func (db *DB) Delete(key []byte) error {
 // Items iterates over key-value pairs in the database, invoking fn(k, v)
 // for each pair. Iteration stops early if fn returns false.
 //
-// The start and order parameters are present for compatibility with the
-// shelve.DB interface but are currently unused.
+// start is the first key to include in the iteration (inclusive).
+// If start is nil or empty, iteration begins at the logical extremity
+// determined by order.
+//
+// order controls the traversal direction:
+//
+//	Asc  (value +1) – ascending lexical order
+//	Desc (value –1) – descending lexical order
+//
+// Keys are streamed in that order until Yield returns false or an
+// error occurs.
 //
 // This operation acquires a read lock each time a database record is read
 // and holds it for the duration of the fn callback. Implementations that
@@ -370,60 +412,51 @@ func (db *DB) Delete(key []byte) error {
 // The user-provided fn(k, v) must not modify the database within the same
 // goroutine as the iteration, as this would cause a deadlock.
 func (db *DB) Items(start []byte, order int, fn Yield) error {
-	_, _ = start, order
-
-	db.mu.RLock()
-	if db.closed {
-		db.mu.RUnlock()
-		return ErrDatabaseClosed
-	}
-	db.mu.RUnlock()
-
-	root := filepath.Join(db.path, dataDirectory)
-
-	if _, err := items(db, root, fn); err != nil {
-		return fmt.Errorf("walk data directory: %w", err)
-	}
-	return nil
-}
-
-func items(
-	db *DB,
-	root string,
-	fn func(key, value []byte) (bool, error),
-) (
-	count int,
-	err error,
-) {
-	err = readDir(root, func(name string) (bool, error) {
-		path := filepath.Join(root, name)
-		count++
-		return handlePathWithLock(db, path, fn)
-	})
-	return count, err
-}
-
-func handlePathWithLock(
-	db *DB,
-	path string,
-	fn func(key, value []byte) (bool, error),
-) (bool, error) {
-	key, err := parseKey(path)
-	if err != nil {
-		return false, fmt.Errorf("parse key: %w", err)
-	}
-
-	// Note: Hold the lock while the callback fn is being executed. Do not
-	// assume we can release it earlier (after the record read).
-	// This ensures that `fn` does not process stale data (i.e. the key-value pair
-	// will be the same on the database for as long as `fn` is running).
-	// However, notice that this will cause a deadlock if the code from `fn` tries to
-	// modify the database (i.e. Put or Delete, which write-acquire the mutex).
 	db.mu.RLock()
 	defer db.mu.RUnlock()
 
 	if db.closed {
-		return false, ErrDatabaseClosed
+		return ErrDatabaseClosed
+	}
+
+	n := len(db.shards)
+	asc := order == Asc
+	encStart := encodeKey(start)
+
+	// Pick initial shard (Use the db.shards slice to prune the
+	// search space).
+	idx := 0
+	if len(start) != 0 {
+		idx = db.shardForKey(encStart)
+	} else if !asc {
+		idx = n - 1
+	}
+
+	step := 1
+	stop := n
+	if !asc {
+		step = -1
+		stop = -1
+	}
+
+	for k := idx; k != stop; k += step {
+		sh := db.shards[k]
+		dir := filepath.Join(db.path, dataDirectory, sh.maxKey)
+
+		if err := streamDir(dir, encStart, order, func(filename string) (bool, error) {
+			return handleFileWithLock(db, dir, filename, fn)
+		}); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func handleFileWithLock(db *DB, dir string, name string, fn Yield) (bool, error) {
+	key, err := decodeKey(name)
+	if err != nil {
+		return false, fmt.Errorf("decode key: %w", err)
 	}
 
 	// Use the cache (but do not cache aside while iterating) because that would
@@ -435,7 +468,7 @@ func handlePathWithLock(
 	}
 
 	// Read from the disk.
-	v, err := os.ReadFile(path)
+	v, err := os.ReadFile(filepath.Join(dir, name))
 	if errors.Is(err, os.ErrNotExist) {
 		// Deleted while iterating? Ignore.
 		return true, nil
@@ -449,14 +482,19 @@ func handlePathWithLock(
 
 // Helpers
 
-func keyPath(db *DB, key []byte) string {
-	base := base32.HexEncoding.EncodeToString(key)
-	return filepath.Join(db.path, dataDirectory, base)
+func keyPath(db *DB, key []byte) (path string, shardID int) {
+	base := encodeKey(key)
+	i := db.shardForKey(base)
+	dir := db.shardPath(i)
+	return filepath.Join(dir, base), i
 }
 
-func parseKey(path string) ([]byte, error) {
-	base := filepath.Base(path)
-	return base32.HexEncoding.DecodeString(base)
+func encodeKey(key []byte) string {
+	return base32.HexEncoding.EncodeToString(key)
+}
+
+func decodeKey(key string) ([]byte, error) {
+	return base32.HexEncoding.DecodeString(key)
 }
 
 // prepareForMutation ensures we have enough information saved in persistent

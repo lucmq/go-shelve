@@ -628,8 +628,10 @@ func (T *DBTests) TestItems(t *testing.T) {
 
 func (T *DBTests) TestItems_Seek(t *testing.T) {
 	seed := map[string]string{
-		"key-1": "value-1", "key-2": "value-2",
-		"key-3": "value-3", "key-4": "value-4",
+		"key-01": "value-01", "key-02": "value-02", "key-03": "value-03",
+		"key-04": "value-04", "key-05": "value-05", "key-06": "value-06",
+		"key-07": "value-07", "key-08": "value-08", "key-09": "value-09",
+		"key-10": "value-10", "key-11": "value-11", "key-12": "value-12",
 	}
 	tests := []struct {
 		name     string
@@ -643,17 +645,41 @@ func (T *DBTests) TestItems_Seek(t *testing.T) {
 		},
 		{
 			name:     "Items succeeds - first key",
-			start:    "key-1",
+			start:    "key-01",
 			expected: seed,
 		},
 		{
-			name:  "Items succeeds - subset",
-			start: "key-2",
+			name:  "Items succeeds - key in the middle",
+			start: "key-07",
 			expected: map[string]string{
-				"key-2": "value-2",
-				"key-3": "value-3",
-				"key-4": "value-4",
+				"key-07": "value-07", "key-08": "value-08", "key-09": "value-09",
+				"key-10": "value-10", "key-11": "value-11", "key-12": "value-12",
 			},
+		},
+		{
+			name:  "Items succeeds - last key",
+			start: "key-12",
+			expected: map[string]string{
+				"key-12": "value-12",
+			},
+		},
+		{
+			name:     "Items succeeds - non-existing start - before first key",
+			start:    "key-00",
+			expected: seed,
+		},
+		{
+			name:  "Items succeeds - non-existing start - in the middle",
+			start: "key-07z",
+			expected: map[string]string{
+				"key-08": "value-08", "key-09": "value-09", "key-10": "value-10",
+				"key-11": "value-11", "key-12": "value-12",
+			},
+		},
+		{
+			name:     "Items succeeds - non-existing start - after last key",
+			start:    "key-99",
+			expected: map[string]string{},
 		},
 	}
 
@@ -719,8 +745,10 @@ func (T *DBTests) TestItems_Reverse(t *testing.T) {
 
 func (T *DBTests) TestItems_SeekReverse(t *testing.T) {
 	seed := map[string]string{
-		"key-1": "value-1", "key-2": "value-2",
-		"key-3": "value-3", "key-4": "value-4",
+		"key-01": "value-01", "key-02": "value-02", "key-03": "value-03",
+		"key-04": "value-04", "key-05": "value-05", "key-06": "value-06",
+		"key-07": "value-07", "key-08": "value-08", "key-09": "value-09",
+		"key-10": "value-10", "key-11": "value-11", "key-12": "value-12",
 	}
 	tests := []struct {
 		name     string
@@ -734,17 +762,43 @@ func (T *DBTests) TestItems_SeekReverse(t *testing.T) {
 		},
 		{
 			name:     "Items succeeds - first key",
-			start:    "key-4",
+			start:    "key-12",
 			expected: seed,
 		},
 		{
-			name:  "Items succeeds - subset",
-			start: "key-3",
+			name:  "Items succeeds - key in the middle",
+			start: "key-07",
 			expected: map[string]string{
-				"key-3": "value-3",
-				"key-2": "value-2",
-				"key-1": "value-1",
+				"key-01": "value-01", "key-02": "value-02", "key-03": "value-03",
+				"key-04": "value-04", "key-05": "value-05", "key-06": "value-06",
+				"key-07": "value-07",
 			},
+		},
+		{
+			name:  "Items succeeds - last key",
+			start: "key-01",
+			expected: map[string]string{
+				"key-01": "value-01",
+			},
+		},
+		{
+			name:     "Items succeeds - non-existing start - before first key",
+			start:    "key-99",
+			expected: seed,
+		},
+		{
+			name:  "Items succeeds - non-existing start - in the middle",
+			start: "key-07z",
+			expected: map[string]string{
+				"key-01": "value-01", "key-02": "value-02", "key-03": "value-03",
+				"key-04": "value-04", "key-05": "value-05", "key-06": "value-06",
+				"key-07": "value-07",
+			},
+		},
+		{
+			name:     "Items succeeds - non-existing start - after last key",
+			start:    "key-00",
+			expected: map[string]string{},
 		},
 	}
 

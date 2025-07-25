@@ -36,5 +36,5 @@ func recoverDatabase(db *DB) error {
 
 func countItems(path string) (uint64, error) {
 	// Each database record is represented by a regular file.
-	return countFiles(path)
+	return countRegularFiles(path)
 }
