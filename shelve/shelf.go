@@ -242,7 +242,7 @@ func (s *Shelf[K, V]) Delete(key K) error {
 // in the Shelf.
 //
 // The n parameter specifies the maximum number of items to iterate over. If n
-// is -1 or less, all items will be iterated.
+// is All (-1) or less, all items will be iterated.
 //
 // The step parameter specifies the number of items to skip between each
 // iteration. A negative value for step will cause the iteration to occur in
@@ -252,8 +252,8 @@ func (s *Shelf[K, V]) Delete(key K) error {
 // not be sorted. Some database implementations may ignore the start parameter
 // or not support iteration in reverse order.
 //
-// The default database used with Shelf (sdb.DB) does not yield items in any
-// particular order and ignores the start parameter.
+// The default Shelf database (sdb.DB) yields items in deterministic lexical
+// order and honours the start key.
 func (s *Shelf[K, V]) Items(start *K, n, step int, fn Yield[K, V]) error {
 	dbFn := func(k, v []byte) (bool, error) {
 		var key K

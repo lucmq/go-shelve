@@ -6,6 +6,7 @@ import (
 	"flag"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -228,22 +229,17 @@ func TestCLIItems(t *testing.T) {
 
 	t.Run("valid items", func(t *testing.T) {
 		got := runCLI(t, "-path", path, "items")
-		expectUnorderedContains(t, got, []string{"a 1", "b 2", "c 3"})
+		expectOutputLines(t, got, []string{"a 1", "b 2", "c 3"})
 	})
 
 	t.Run("items with start/end/limit", func(t *testing.T) {
 		got := runCLI(t, "-path", path, "items", "-start", "b", "-limit", "1")
-		got1 := runCLI(t, "-path", path, "items", "-start", "a", "-limit", "1")
-		got2 := runCLI(t, "-path", path, "items", "-start", "c", "-limit", "1")
-		if got == "" && got1 == "" && got2 == "" {
-			t.Errorf("expected at least one item, got none")
-		}
+		expectOutputLines(t, got, []string{"b 2"})
 	})
 
 	t.Run("items with end", func(t *testing.T) {
-		items := runCLI(t, "-path", path, "items", "-end", "a")
-		// Note: Can't check the keys here because SDB doesn't guarantee order.
-		_ = items
+		items := runCLI(t, "-path", path, "items", "-end", "c")
+		expectOutputLines(t, items, []string{"a 1", "b 2"})
 	})
 
 	t.Run("invalid items - Shelve error", func(t *testing.T) {
@@ -275,18 +271,17 @@ func TestCLIKeys(t *testing.T) {
 
 	t.Run("valid keys", func(t *testing.T) {
 		keys := runCLI(t, "-path", path, "keys")
-		expectUnorderedContains(t, keys, []string{"a", "b"})
+		expectOutputLines(t, keys, []string{"a", "b", "c"})
 	})
 
 	t.Run("keys with start", func(t *testing.T) {
 		keys := runCLI(t, "-path", path, "keys", "-start", "b")
-		expectUnorderedContains(t, keys, []string{"b"})
+		expectOutputLines(t, keys, []string{"b", "c"})
 	})
 
 	t.Run("keys with end", func(t *testing.T) {
-		keys := runCLI(t, "-path", path, "keys", "-end", "a")
-		// Note: Can't check the keys here because SDB doesn't guarantee order.
-		_ = keys
+		keys := runCLI(t, "-path", path, "keys", "-end", "c")
+		expectOutputLines(t, keys, []string{"a", "b"})
 	})
 
 	t.Run("invalid keys - Shelve error", func(t *testing.T) {
@@ -300,17 +295,21 @@ func TestCLIKeys(t *testing.T) {
 func TestCLIValues(t *testing.T) {
 	path := setupTestDB(t)
 
-	runCLI(t, "-path", path, "put", "a", "1", "b", "2")
+	runCLI(t, "-path", path, "put", "a", "1", "b", "2", "c", "3")
 
 	t.Run("valid values", func(t *testing.T) {
 		values := runCLI(t, "-path", path, "values")
-		expectUnorderedContains(t, values, []string{"1", "2"})
+		expectOutputLines(t, values, []string{"1", "2", "3"})
+	})
+
+	t.Run("values with start", func(t *testing.T) {
+		values := runCLI(t, "-path", path, "values", "-start", "b")
+		expectOutputLines(t, values, []string{"2", "3"})
 	})
 
 	t.Run("values with end", func(t *testing.T) {
-		values := runCLI(t, "-path", path, "values", "-end", "a")
-		// Note: Can't check the keys here because SDB doesn't guarantee order.
-		_ = values
+		values := runCLI(t, "-path", path, "values", "-end", "c")
+		expectOutputLines(t, values, []string{"1", "2"})
 	})
 
 	t.Run("invalid values - Shelve error", func(t *testing.T) {
@@ -396,15 +395,9 @@ func TestMainExitOnError(t *testing.T) {
 	}
 }
 
-func expectUnorderedContains(t *testing.T, output string, expected []string) {
+func expectOutputLines(t *testing.T, output string, expected []string) {
 	lines := strings.Split(strings.TrimSpace(output), "\n")
-	got := map[string]bool{}
-	for _, line := range lines {
-		got[line] = true
-	}
-	for _, exp := range expected {
-		if !got[exp] {
-			t.Errorf("expected output to contain %q, got:\n%s", exp, output)
-		}
+	if !slices.Equal(expected, lines) {
+		t.Errorf("expected output to contain %q, got:\n%s", expected, output)
 	}
 }

@@ -31,6 +31,11 @@ func initializeDatabase(db *DB) error {
 		return fmt.Errorf("load metadata: %w", err)
 	}
 
+	// Load the shards
+	if err = db.loadShards(); err != nil {
+		return fmt.Errorf("load shards: %w", err)
+	}
+
 	// Check the DB consistency and possibly recover from a corrupted
 	// state
 	return sanityCheck(db)
@@ -40,6 +45,7 @@ func createDatabaseStorage(db *DB) error {
 	paths := []string{
 		db.path,
 		filepath.Join(db.path, dataDirectory),
+		filepath.Join(db.path, dataDirectory, sentinelDir),
 		filepath.Join(db.path, metadataDirectory),
 	}
 

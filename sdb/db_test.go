@@ -4,8 +4,12 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
+	"reflect"
+	"slices"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -14,21 +18,22 @@ import (
 // Helpers
 
 var (
-	TestDirectory = filepath.Join(os.TempDir(), "sdb-test")
-	TestError     = errors.New("test error")
+	TestDirectory           = filepath.Join(os.TempDir(), "sdb-test")
+	TestFilesPerShardOption = withMaxFilesPerShard(3)
+	TestError               = errors.New("test error")
 )
 
 type TDB = *DB
 
 // Provides an Open function that creates a clean test database.
 func OpenTestDB() (*DB, error) {
-	open := NewOpenFunc(true)
+	open := NewOpenFunc(true, TestFilesPerShardOption)
 	return open()
 }
 
 // Same as OpenTestDB, but without the cleaning the database directory.
 func ReopenTestDB() (*DB, error) {
-	open := NewOpenFunc(false)
+	open := NewOpenFunc(false, TestFilesPerShardOption)
 	return open()
 }
 
@@ -47,20 +52,91 @@ func NewOpenFunc(clean bool, opts ...Option) OpenFunc {
 	}
 }
 
+func CheckShardLayout(t *testing.T, db TDB, _ map[string]string) {
+	// Get the list of shards on disk
+	shards, err := os.ReadDir(filepath.Join(db.path, dataDirectory))
+	if err != nil {
+		t.Fatalf("read shard dir: %v", err)
+	}
+
+	for _, dir := range shards {
+		shardFiles, err := os.ReadDir(filepath.Join(db.path, dataDirectory, dir.Name()))
+		if err != nil {
+			t.Errorf("read shard dir: %v", err)
+		}
+
+		// Check the number of files in the shard
+		if int64(len(shardFiles)) > db.maxFilesPerShard {
+			t.Errorf("Too many files (%d) in shard: %s", len(shardFiles), dir.Name())
+		}
+	}
+}
+
+func AssertItems(t *testing.T, db *DB, start []byte, order int, expect []string) {
+	t.Helper()
+
+	var got []string
+	err := db.Items(start, order, func(k, _ []byte) (bool, error) {
+		got = append(got, string(k))
+		return true, nil
+	})
+	if err != nil {
+		t.Fatalf("Items: %v", err)
+	}
+
+	if len(got) != len(expect) {
+		t.Errorf("Expected len to be %v, but got %v", expect, got)
+	}
+	if !reflect.DeepEqual(got, expect) {
+		t.Fatalf("start=%q order=%d\nwant %v\ngot  %v",
+			start, order, expect, got)
+	}
+}
+
+func getClosedDB(t *testing.T, seed map[string]string) *DB {
+	t.Helper()
+
+	open := NewOpenFunc(true, WithCacheSize(0))
+	db := StartDatabase(t, open, seed)
+	if err := db.Close(); err != nil {
+		t.Fatalf("Expected no error, but got %v", err)
+	}
+
+	return db
+}
+
 // Tests
 
 func TestDB(t *testing.T) {
-	tests := NewDBTests(NewOpenFunc(true), NewOpenFunc(false))
+	tests := NewDBTests(
+		NewOpenFunc(true, TestFilesPerShardOption),
+		NewOpenFunc(false, TestFilesPerShardOption),
+	)
 	tests.CheckInitialization = CheckInitialization
+	tests.SupportsSeeking = true
+	tests.SupportsReverseIteration = true
 	tests.TestAll(t)
 }
 
 func TestDB_NoCache(t *testing.T) {
 	tests := NewDBTests(
-		NewOpenFunc(true, WithCacheSize(0)),
-		NewOpenFunc(false, WithCacheSize(0)),
+		NewOpenFunc(true, WithCacheSize(0), TestFilesPerShardOption),
+		NewOpenFunc(false, WithCacheSize(0), TestFilesPerShardOption),
 	)
 	tests.CheckInitialization = CheckInitialization
+	tests.SupportsSeeking = true
+	tests.SupportsReverseIteration = true
+	tests.TestAll(t)
+}
+
+func TestDB_SyncWrites(t *testing.T) {
+	tests := NewDBTests(
+		NewOpenFunc(true, WithSynchronousWrites(true), TestFilesPerShardOption),
+		NewOpenFunc(false, WithSynchronousWrites(true), TestFilesPerShardOption),
+	)
+	tests.CheckInitialization = CheckInitialization
+	tests.SupportsSeeking = true
+	tests.SupportsReverseIteration = true
 	tests.TestAll(t)
 }
 
@@ -75,6 +151,7 @@ func TestOpen_WithOptions(t *testing.T) {
 	db, err := Open(path,
 		WithCacheSize(cacheSize),
 		WithSynchronousWrites(true),
+		TestFilesPerShardOption,
 	)
 	if err != nil {
 		t.Errorf("Expected no error, but got %v", err)
@@ -121,8 +198,8 @@ func TestDB_FileError_Items(t *testing.T) {
 		defer db.Close()
 
 		// Make the files unreadable
-		path := keyPath(db, []byte("key-1"))
-		wrongPath := filepath.Join(db.path, dataDirectory, "0000")
+		path, _ := keyPath(db, []byte("key-1"))
+		wrongPath := filepath.Join(db.path, dataDirectory, sentinelDir, "0000")
 		err := os.Rename(path, wrongPath)
 		if err != nil {
 			t.Fatalf("Expected no error, but got %v", err)
@@ -137,16 +214,105 @@ func TestDB_FileError_Items(t *testing.T) {
 	})
 }
 
-func getClosedDB(t *testing.T, seed map[string]string) *DB {
-	t.Helper()
+// Tests to check the internal sharding layout consistency.
+func TestDB_ShardLayout(t *testing.T) {
+	t.Run("Count < MaxCount after insertions", func(t *testing.T) {
+		// Arrange
+		seed := make(map[string]string)
+		for i := 0; i < 100; i++ {
+			key := []byte("key-" + strconv.Itoa(i))
+			value := []byte("value-" + strconv.Itoa(i))
+			seed[string(key)] = string(value)
+		}
 
-	open := NewOpenFunc(true, WithCacheSize(0))
-	db := StartDatabase(t, open, seed)
-	if err := db.Close(); err != nil {
-		t.Fatalf("Expected no error, but got %v", err)
+		// Act
+		open := NewOpenFunc(true, WithCacheSize(0))
+		db := StartDatabase(t, open, seed)
+		defer db.Close()
+
+		// Assert
+		CheckShardLayout(t, db, seed)
+	})
+}
+
+func TestDB_Items_ShardBoundaries(t *testing.T) {
+	seed := make(map[string]string)
+	for i := 0; i < 30; i++ {
+		k := fmt.Sprintf("%03d", i)
+		seed[k] = "v" + k
 	}
 
-	return db
+	db := StartDatabase(t, OpenTestDB, seed)
+	defer db.Close()
+
+	// Expected key slices
+	keysAsc := slices.Sorted(maps.Keys(seed))
+	keysDesc := slices.Clone(keysAsc)
+	slices.Reverse(keysDesc)
+
+	cases := []struct {
+		name  string
+		order int
+		keys  []string
+	}{
+		{"asc", Asc, keysAsc},
+		{"desc", Desc, keysDesc},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		for i, start := range tc.keys {
+			t.Run(fmt.Sprintf("%s/from=%s", tc.name, start), func(t *testing.T) {
+				expect := tc.keys[i:]
+				AssertItems(t, db, []byte(start), tc.order, expect)
+			})
+		}
+	}
+}
+
+func TestDB_Items_ShardBoundariesAfterDelete(t *testing.T) {
+	// Seed & Delete
+	seed := make(map[string]string)
+	for i := 0; i < 40; i++ {
+		k := fmt.Sprintf("%03d", i)
+		seed[k] = "v" + k
+	}
+
+	db := StartDatabase(t, OpenTestDB, seed)
+	defer db.Close()
+
+	// Delete the first 30 keys (000 … 029)
+	for i := 0; i < 30; i++ {
+		k := fmt.Sprintf("%03d", i)
+		delete(seed, k)
+		if err := db.Delete([]byte(k)); err != nil {
+			t.Fatalf("Delete(%s): %v", k, err)
+		}
+	}
+
+	// Expected key slices
+	keysAsc := slices.Sorted(maps.Keys(seed)) // [030 … 039]
+	keysDesc := slices.Clone(keysAsc)
+	slices.Reverse(keysDesc) // [039 … 030]
+
+	cases := []struct {
+		name  string
+		order int
+		keys  []string
+	}{
+		{"asc", Asc, keysAsc},
+		{"desc", Desc, keysDesc},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		for i, start := range tc.keys {
+			t.Run(fmt.Sprintf("%s/from=%s", tc.name, start), func(t *testing.T) {
+				expect := tc.keys[i:]
+				AssertItems(t, db, []byte(start), tc.order, expect)
+			})
+		}
+	}
 }
 
 func TestOperationsOnClosedDB(t *testing.T) {
@@ -345,6 +511,8 @@ func TestOperationsOnClosedDB(t *testing.T) {
 		}
 	})
 
+	// Note: Items() and Close() can run in parallel because Items() takes the
+	// global lock at the start. Update this test if the locking strategy changes.
 	t.Run("Items - While Iterating", func(t *testing.T) {
 		db := StartDatabase(
 			t,
@@ -379,8 +547,8 @@ func TestOperationsOnClosedDB(t *testing.T) {
 
 			return true, nil
 		})
-		if !errors.Is(err, ErrDatabaseClosed) {
-			t.Errorf("Items after Close: expected ErrDatabaseClosed, got: %v", err)
+		if err != nil {
+			t.Errorf("Items: %v", err)
 		}
 		wg.Wait()
 	})

@@ -170,18 +170,21 @@ func BenchmarkDB_Get(b *testing.B) {
 func BenchmarkDB_Items(b *testing.B) {
 	benchmarks := []struct {
 		name      string
+		order     int
 		seedSize  int
 		batchSize int
 		opts      []Option // Additions to the default options
 	}{
 		{
 			name:      "Cache",
+			order:     Asc,
 			seedSize:  100000,
 			batchSize: 1000,
 			opts:      []Option{WithCacheSize(-1)},
 		},
 		{
 			name:      "No Cache",
+			order:     Asc,
 			seedSize:  100000,
 			batchSize: 1000,
 			opts:      []Option{WithCacheSize(0)},
@@ -216,7 +219,7 @@ func BenchmarkDB_Items(b *testing.B) {
 			for i := 0; i < b.N; i++ {
 				err := db.Items(
 					nil,
-					1,
+					bm.order,
 					func(key, value []byte) (bool, error) {
 						itemsRead++
 						n++

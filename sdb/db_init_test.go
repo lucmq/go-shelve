@@ -1,8 +1,11 @@
 package sdb
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
+	"syscall"
 	"testing"
 )
 
@@ -22,6 +25,7 @@ func CheckFileStructure(t *testing.T, db *DB) {
 	t.Helper()
 	AssertExists(t, db.path)
 	AssertExists(t, filepath.Join(db.path, dataDirectory))
+	AssertExists(t, filepath.Join(db.path, dataDirectory, sentinelDir))
 	AssertExists(t, filepath.Join(db.path, metadataDirectory))
 	AssertExists(t, filepath.Join(db.path, db.metadata.FilePath()))
 }
@@ -54,6 +58,33 @@ func checkMetadata(
 func AssertExists(t *testing.T, path string) {
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		t.Errorf("Expected %s to exist", path)
+	}
+}
+
+func RequirePermErr(t *testing.T, path string, fn func() error) {
+	t.Helper()
+
+	// Save original mode so we can restore it.
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("stat(%s): %v", path, err)
+	}
+	origMode := info.Mode()
+
+	// Remove all permissions from the directory.
+	if err := os.Chmod(path, 0); err != nil {
+		t.Fatalf("chmod(%s, 0): %v", path, err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(path, origMode) })
+
+	// Expect fn() to fail with a permission-denied error.
+	err = fn()
+	if err == nil {
+		t.Fatalf("expected error, got nil")
+	}
+	var perr *os.PathError
+	if !errors.As(err, &perr) || !errors.Is(perr.Err, syscall.EACCES) {
+		t.Fatalf("want *PathError{Err: EACCES}, got %#v", err)
 	}
 }
 
@@ -246,5 +277,22 @@ func TestDB_Init_FileError(t *testing.T) {
 		if err == nil {
 			t.Errorf("Expected error, but got nil")
 		}
+	})
+}
+
+func TestDB_Init_ShardError(t *testing.T) {
+	t.Run("Bad Permissions - Shard Dir", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			t.Skip("chmod permission tests are UNIX-only")
+		}
+
+		seed := map[string]string{
+			"a": "1", "b": "2", "c": "3", "d": "4",
+		}
+		db := StartDatabase(t, OpenTestDB, seed)
+		defer db.Close()
+
+		dataDir := filepath.Join(db.path, "data")
+		RequirePermErr(t, dataDir, func() error { return db.splitShard(0) })
 	})
 }

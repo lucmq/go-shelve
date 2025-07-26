@@ -2,7 +2,6 @@ package sdb
 
 import (
 	"bytes"
-	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -134,81 +133,6 @@ func TestMkdirs(t *testing.T) {
 		err := mkdirs(paths, TestDirPermissions)
 		if err == nil {
 			t.Fatalf("expected error")
-		}
-	})
-}
-
-func TestReadDir(t *testing.T) {
-	// Prepare
-	dirs := map[string]string{
-		"empty": filepath.Join(os.TempDir(), "test-dir-empty"),
-		"test":  filepath.Join(os.TempDir(), "test-dir"),
-	}
-	files := []string{
-		filepath.Join(dirs["test"], "file1.txt"),
-		filepath.Join(dirs["test"], "file2.txt"),
-	}
-	t.Cleanup(func() {
-		for _, dir := range dirs {
-			_ = os.RemoveAll(dir)
-		}
-	})
-	for _, dir := range dirs {
-		_ = os.MkdirAll(dir, TestDirPermissions)
-	}
-	for _, file := range files {
-		_ = os.WriteFile(file, []byte("test"), TestDirPermissions)
-	}
-
-	// Run tests
-	t.Run("Empty directory", func(t *testing.T) {
-		err := readDir(dirs["empty"], func(name string) (bool, error) {
-			return false, errors.New("should not be called")
-		})
-		if err != nil {
-			t.Errorf("unexpected error: %v", err)
-		}
-	})
-
-	t.Run("Directory exists", func(t *testing.T) {
-		err := readDir(dirs["test"], func(name string) (bool, error) {
-			if name != "file1.txt" && name != "file2.txt" {
-				return false, errors.New("unexpected file name")
-			}
-			return true, nil
-		})
-		if err != nil {
-			t.Errorf("unexpected error: %v", err)
-		}
-	})
-
-	t.Run("Directory does not exist", func(t *testing.T) {
-		dir := filepath.Join(os.TempDir(), "does-not-exist")
-
-		err := readDir(dir, func(name string) (bool, error) {
-			return false, errors.New("should not be called")
-		})
-
-		if !errors.Is(err, os.ErrNotExist) {
-			t.Errorf("expected 'file does not exist' error, got: %v", err)
-		}
-	})
-
-	t.Run("Callback error", func(t *testing.T) {
-		err := readDir(dirs["test"], func(name string) (bool, error) {
-			return false, TestError
-		})
-		if !errors.Is(err, TestError) {
-			t.Errorf("expected 'test error' error, got: %v", err)
-		}
-	})
-
-	t.Run("Stop iteration", func(t *testing.T) {
-		err := readDir(dirs["test"], func(name string) (bool, error) {
-			return false, nil
-		})
-		if err != nil {
-			t.Errorf("unexpected error: %v", err)
 		}
 	})
 }

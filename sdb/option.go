@@ -21,3 +21,11 @@ func WithSynchronousWrites(sync bool) Option {
 		db.syncWrites = sync
 	}
 }
+
+func withMaxFilesPerShard(maxFilesPerShard int64) Option {
+	// Note: This function is important for configuring tests with small shard
+	// counts to test their behavior.
+	return func(db *DB) {
+		db.maxFilesPerShard = maxFilesPerShard
+	}
+}

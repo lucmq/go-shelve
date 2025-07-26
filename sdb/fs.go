@@ -1,13 +1,13 @@
 package sdb
 
 import (
-	"errors"
 	"fmt"
-	"io"
+	"io/fs"
 	"math/rand/v2"
 	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"time"
 )
 
@@ -110,52 +110,72 @@ func mkdirs(paths []string, perm os.FileMode) error {
 	return nil
 }
 
-func countFiles(path string) (uint64, error) {
-	var count uint64
-	err := readDir(path, func(name string) (bool, error) {
-		count++
-		return true, nil
-	})
-	return count, err
+func streamDir(dir string, start string, order int, fn func(filename string) (bool, error)) error {
+	asc := order > Desc
+	needFilter := len(start) != 0
+
+	filenames, err := readDir(dir, order)
+	if err != nil {
+		return fmt.Errorf("readDir: %w", err)
+	}
+
+	for _, name := range filenames {
+		if needFilter {
+			if asc && name < start {
+				continue // still before the start
+			}
+			if !asc && name > start {
+				continue // still before the start (descending case)
+			}
+			needFilter = false // boundary crossed -- stop filtering
+		}
+
+		keep, err := fn(name)
+		if err != nil {
+			return fmt.Errorf("fn: %w", err)
+		}
+		if !keep {
+			return nil
+		}
+	}
+
+	return nil
 }
 
-func readDir(path string, fn func(name string) (bool, error)) (err error) {
-	var f *os.File
-	f, err = os.Open(path)
+func readDir(dir string, order int) ([]string, error) {
+	f, err := os.Open(dir)
 	if err != nil {
-		return fmt.Errorf("open: %w", err)
+		return nil, fmt.Errorf("open: %w", err)
 	}
-	defer func() {
-		// Safely close the file and assign to the return value
-		if err1 := f.Close(); err1 != nil && err == nil {
-			err = err1
-		}
-	}()
-	for {
-		var names []string
-		batchSize := 256
-		// Note: We may need to acquire a read lock (`DB.mu.RLock()`) both here
-		// and within DB.handlePathWithLock, as we already do. This ensures
-		// consistency when reading directory entries and accessing database records.
-		names, err = f.Readdirnames(batchSize)
-		if err != nil {
-			// EOF or unreadable dir
-			if errors.Is(err, io.EOF) {
-				err = nil
-			}
-			return err
-		}
-		for _, name := range names {
-			ok, err := fn(name)
-			if err != nil {
-				return fmt.Errorf("fn: %w", err)
-			}
-			if !ok {
-				// Stop Iteration
-				return nil
-			}
-		}
+	defer f.Close()
+
+	names, err := f.Readdirnames(-1)
+	if err != nil {
+		return nil, fmt.Errorf("readdirnames: %w", err)
 	}
+
+	sort.Slice(names, func(i, j int) bool {
+		if order > Desc {
+			return names[i] < names[j]
+		}
+		return names[i] > names[j]
+	})
+
+	return names, nil
+}
+
+// countRegularFiles walks the directory tree rooted at path and returns the
+// number of regular (non-directory) files it finds.
+func countRegularFiles(path string) (uint64, error) {
+	var count uint64
+	err := filepath.WalkDir(path, func(_ string, d fs.DirEntry, err error) error {
+		if d != nil && d.Type().IsRegular() {
+			count++
+		}
+		// propagate I/O or permission errors
+		return err
+	})
+	return count, err
 }
 
 // Helpers

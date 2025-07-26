@@ -132,7 +132,7 @@ func TestDB_FileError_Items_Unix(t *testing.T) {
 		defer db.Close()
 
 		// Make the files unreadable
-		path := filepath.Join(db.path, dataDirectory)
+		path := filepath.Join(db.path, dataDirectory, sentinelDir)
 		defer func() {
 			err := os.Chmod(path, defaultDirPermissions)
 			if err != nil {
