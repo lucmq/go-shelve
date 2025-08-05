@@ -2,10 +2,9 @@ package sdb
 
 import (
 	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
-	"runtime"
-	"syscall"
 	"testing"
 )
 
@@ -27,7 +26,7 @@ func CheckFileStructure(t *testing.T, db *DB) {
 	AssertExists(t, filepath.Join(db.path, dataDirectory))
 	AssertExists(t, filepath.Join(db.path, dataDirectory, sentinelDir))
 	AssertExists(t, filepath.Join(db.path, metadataDirectory))
-	AssertExists(t, filepath.Join(db.path, db.metadata.FilePath()))
+	AssertExists(t, db.metadataStore.FilePath())
 }
 
 func checkMetadata(
@@ -58,33 +57,6 @@ func checkMetadata(
 func AssertExists(t *testing.T, path string) {
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		t.Errorf("Expected %s to exist", path)
-	}
-}
-
-func RequirePermErr(t *testing.T, path string, fn func() error) {
-	t.Helper()
-
-	// Save original mode so we can restore it.
-	info, err := os.Stat(path)
-	if err != nil {
-		t.Fatalf("stat(%s): %v", path, err)
-	}
-	origMode := info.Mode()
-
-	// Remove all permissions from the directory.
-	if err := os.Chmod(path, 0); err != nil {
-		t.Fatalf("chmod(%s, 0): %v", path, err)
-	}
-	t.Cleanup(func() { _ = os.Chmod(path, origMode) })
-
-	// Expect fn() to fail with a permission-denied error.
-	err = fn()
-	if err == nil {
-		t.Fatalf("expected error, got nil")
-	}
-	var perr *os.PathError
-	if !errors.As(err, &perr) || !errors.Is(perr.Err, syscall.EACCES) {
-		t.Fatalf("want *PathError{Err: EACCES}, got %#v", err)
 	}
 }
 
@@ -158,6 +130,36 @@ func TestDB_Init(t *testing.T) {
 		// Verify the data
 		checkDatabase(t, db, seed)
 	})
+
+	t.Run("Corrupted database (not closed) - mock fs error", func(t *testing.T) {
+		// Arrange
+		seed := map[string]string{
+			"key-1": "value-1", "key-2": "value-2",
+			"key-3": "value-3", "key-4": "value-4",
+		}
+		db := StartDatabase(t, OpenTestDB, seed)
+		CheckInitialization(t, db)
+
+		fsys := &mockFS{
+			statFunc: func(name string) (fs.FileInfo, error) {
+				if name == filepath.Join(db.path, dataDirectory) {
+					return nil, fs.ErrPermission
+				}
+				return (&osFS{}).Stat(name)
+			},
+			openFunc:     (&osFS{}).Open,
+			openFileFunc: (&osFS{}).OpenFile,
+			readFileFunc: (&osFS{}).ReadFile,
+		}
+
+		// Reopen without closing
+		open := NewOpenFunc(false, withFileSystem(fsys))
+
+		db, err := open()
+		if !errors.Is(err, fs.ErrPermission) {
+			t.Errorf("Expected error, but got nil")
+		}
+	})
 }
 
 func TestDB_Init_MetadataError(t *testing.T) {
@@ -175,8 +177,7 @@ func TestDB_Init_MetadataError(t *testing.T) {
 		db.Close()
 
 		// Corrupt the metadata file
-		metadataFile := filepath.Join(db.path, db.metadata.FilePath())
-		if err := os.Truncate(metadataFile, 2); err != nil {
+		if err := os.Truncate(db.metadataStore.FilePath(), 2); err != nil {
 			t.Errorf("Expected no error, but got %v", err)
 		}
 
@@ -202,17 +203,17 @@ func TestDB_Init_MetadataError(t *testing.T) {
 			db.Close()
 
 			// Corrupt the metadata file
-			var m metadata
-			if err := m.Load(db.path); err != nil {
+			m, err := db.metadataStore.Load()
+			if err != nil {
 				t.Errorf("Expected no error, but got %v", err)
 			}
 			m.Version = 0
-			if err := m.Save(db.path); err != nil {
+			if err = db.metadataStore.Save(m); err != nil {
 				t.Errorf("Expected no error, but got %v", err)
 			}
 
 			// Try to Reopen
-			_, err := ReopenTestDB()
+			_, err = ReopenTestDB()
 			if err == nil {
 				t.Errorf("Expected error, but got nil")
 			}
@@ -280,19 +281,162 @@ func TestDB_Init_FileError(t *testing.T) {
 	})
 }
 
-func TestDB_Init_ShardError(t *testing.T) {
-	t.Run("Bad Permissions - Shard Dir", func(t *testing.T) {
-		if runtime.GOOS == "windows" {
-			t.Skip("chmod permission tests are UNIX-only")
+func TestDB_Init_MockFileSystemError(t *testing.T) {
+	t.Run("New DB: cannot stat DB path", func(t *testing.T) {
+		dbPath := TestDirectory
+
+		fsys := &mockFS{
+			statFunc: func(name string) (fs.FileInfo, error) {
+				if name == dbPath {
+					return nil, fs.ErrPermission
+				}
+				return (&osFS{}).Stat(name)
+			},
+			openFunc:     (&osFS{}).Open,
+			openFileFunc: (&osFS{}).OpenFile,
+		}
+		open := NewOpenFunc(true, WithCacheSize(0), withFileSystem(fsys))
+
+		_, err := open()
+		if !errors.Is(err, fs.ErrPermission) {
+			t.Errorf("Expected fs.ErrPermission, but got %v", err)
+		}
+	})
+
+	t.Run("New DB: cannot create dirs", func(t *testing.T) {
+		fsys := &mockFS{
+			mkdirAllFunc: func(_ string, _ fs.FileMode) error {
+				return fs.ErrPermission
+			},
+			statFunc:     (&osFS{}).Stat,
+			openFunc:     (&osFS{}).Open,
+			openFileFunc: (&osFS{}).OpenFile,
+			readFileFunc: (&osFS{}).ReadFile,
+		}
+		open := NewOpenFunc(true, WithCacheSize(0), withFileSystem(fsys))
+
+		_, err := open()
+		if !errors.Is(err, fs.ErrPermission) {
+			t.Errorf("Expected fs.ErrPermission, but got %v", err)
+		}
+	})
+
+	t.Run("New DB: cannot write metadata file", func(t *testing.T) {
+		fsys := &mockFS{
+			openFileFunc: func(_ string, _ int, _ fs.FileMode) (fs.File, error) {
+				return nil, fs.ErrPermission
+			},
+			mkdirAllFunc: (&osFS{}).MkdirAll,
+			statFunc:     (&osFS{}).Stat,
+			openFunc:     (&osFS{}).Open,
+			readFileFunc: (&osFS{}).ReadFile,
+		}
+		open := NewOpenFunc(true, WithCacheSize(0), withFileSystem(fsys))
+
+		_, err := open()
+		if !errors.Is(err, fs.ErrPermission) {
+			t.Errorf("Expected fs.ErrPermission, but got %v", err)
+		}
+	})
+
+	t.Run("Existing DB: cannot load shards - data dir unreadable", func(t *testing.T) {
+		db, err := OpenTestDB()
+		if err != nil {
+			t.Fatalf("Expected no error, but got %v", err)
+		}
+		if err = db.Close(); err != nil {
+			t.Fatalf("Expected no error, but got %v", err)
 		}
 
-		seed := map[string]string{
-			"a": "1", "b": "2", "c": "3", "d": "4",
-		}
-		db := StartDatabase(t, OpenTestDB, seed)
-		defer db.Close()
+		// Reopen to try to load the shards
 
-		dataDir := filepath.Join(db.path, "data")
-		RequirePermErr(t, dataDir, func() error { return db.splitShard(0) })
+		dbPath := TestDirectory
+		dataDir := filepath.Join(dbPath, dataDirectory)
+
+		fsys := &mockFS{
+			readDirFunc: func(name string) ([]fs.DirEntry, error) {
+				if name == dataDir {
+					return nil, fs.ErrPermission
+				}
+				return (&osFS{}).ReadDir(name)
+			},
+			statFunc:     (&osFS{}).Stat,
+			openFunc:     (&osFS{}).Open,
+			openFileFunc: (&osFS{}).OpenFile,
+			readFileFunc: (&osFS{}).ReadFile,
+		}
+		open := NewOpenFunc(false, WithCacheSize(0), withFileSystem(fsys))
+
+		_, err = open()
+		if !errors.Is(err, fs.ErrPermission) {
+			t.Errorf("Expected fs.ErrPermission, but got %v", err)
+		}
+	})
+
+	t.Run("Existing DB: cannot load shards - sentinel dir unreadable", func(t *testing.T) {
+		db, err := OpenTestDB()
+		if err != nil {
+			t.Fatalf("Expected no error, but got %v", err)
+		}
+		if err = db.Close(); err != nil {
+			t.Fatalf("Expected no error, but got %v", err)
+		}
+
+		// Reopen to try to load the shards
+
+		dbPath := TestDirectory
+		dataDir := filepath.Join(dbPath, dataDirectory, sentinelDir)
+
+		fsys := &mockFS{
+			readDirFunc: func(name string) ([]fs.DirEntry, error) {
+				if name == dataDir {
+					return nil, fs.ErrPermission
+				}
+				return (&osFS{}).ReadDir(name)
+			},
+			statFunc:     (&osFS{}).Stat,
+			openFunc:     (&osFS{}).Open,
+			openFileFunc: (&osFS{}).OpenFile,
+			readFileFunc: (&osFS{}).ReadFile,
+		}
+		open := NewOpenFunc(false, WithCacheSize(0), withFileSystem(fsys))
+
+		_, err = open()
+		if !errors.Is(err, fs.ErrPermission) {
+			t.Errorf("Expected fs.ErrPermission, but got %v", err)
+		}
+	})
+
+	t.Run("Existing DB: cannot load metadata", func(t *testing.T) {
+		db, err := OpenTestDB()
+		if err != nil {
+			t.Fatalf("Expected no error, but got %v", err)
+		}
+		if err = db.Close(); err != nil {
+			t.Fatalf("Expected no error, but got %v", err)
+		}
+
+		// Reopen to try to load the shards
+
+		metadataFilepath := db.metadataStore.FilePath()
+
+		fsys := &mockFS{
+			readFileFunc: func(name string) ([]byte, error) {
+				if name == metadataFilepath {
+					return nil, fs.ErrPermission
+				}
+				return (&osFS{}).ReadFile(name)
+			},
+			statFunc:     (&osFS{}).Stat,
+			openFunc:     (&osFS{}).Open,
+			openFileFunc: (&osFS{}).OpenFile,
+			readDirFunc:  (&osFS{}).ReadDir,
+		}
+		open := NewOpenFunc(false, WithCacheSize(0), withFileSystem(fsys))
+
+		_, err = open()
+		if !errors.Is(err, fs.ErrPermission) {
+			t.Errorf("Expected fs.ErrPermission, but got %v", err)
+		}
 	})
 }

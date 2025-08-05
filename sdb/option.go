@@ -1,6 +1,10 @@
 package sdb
 
-import "github.com/lucmq/go-shelve/sdb/internal"
+import (
+	"time"
+
+	"github.com/lucmq/go-shelve/sdb/internal"
+)
 
 // Option is passed to the Open function to create a customized DB.
 type Option func(*DB)
@@ -27,5 +31,17 @@ func withMaxFilesPerShard(maxFilesPerShard int64) Option {
 	// counts to test their behavior.
 	return func(db *DB) {
 		db.maxFilesPerShard = maxFilesPerShard
+	}
+}
+
+func withSyncInterval(d time.Duration) Option {
+	return func(db *DB) {
+		db.syncInterval = d
+	}
+}
+
+func withFileSystem(fsys fileSystem) Option {
+	return func(db *DB) {
+		db.fs = fsys
 	}
 }

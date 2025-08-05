@@ -2,6 +2,8 @@ package sdb
 
 import (
 	"bytes"
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
@@ -18,11 +20,11 @@ func TestAtomicWriter_WriteFile(t *testing.T) {
 	}{
 		{
 			name:   "Sync Write",
-			writer: newAtomicWriter(true),
+			writer: newAtomicWriter(&osFS{}, true),
 		},
 		{
 			name:   "Async Write",
-			writer: newAtomicWriter(false),
+			writer: newAtomicWriter(&osFS{}, false),
 		},
 	}
 	for _, test := range tests {
@@ -93,7 +95,7 @@ func runAtomicWriterWriteFileTests(t *testing.T, writer *atomicWriter) {
 		path := filepath.Join(tmpDir, "large_file.txt")
 		data := make([]byte, 10*1024*1024) // 10MB
 
-		err := writer.WriteFile(path, data, false)
+		err = writer.WriteFile(path, data, false)
 		if err != nil {
 			t.Errorf("Expected no error, but got: %v", err)
 		}
@@ -108,6 +110,122 @@ func runAtomicWriterWriteFileTests(t *testing.T, writer *atomicWriter) {
 				len(data), len(fileData))
 		}
 	})
+
+	t.Run("Large file when file.Close fails", func(t *testing.T) {
+		path := filepath.Join(tmpDir, "large_file.txt")
+		data := make([]byte, 10*1024*1024) // 10MB
+
+		// Mock a filesystem that will fail to open the file.
+		writer.fs = &mockFS{
+			openFileFunc: func(_ string, _ int, _ fs.FileMode) (fs.File, error) {
+				f := mockFile{
+					closeFunc: func() error { return TestError },
+				}
+				return &f, nil
+			},
+		}
+
+		err = writer.WriteFile(path, data, false)
+		if !errors.Is(err, TestError) {
+			t.Errorf("Expected TestError, but got %v", err)
+		}
+	})
+}
+
+func TestAtomicWriter_WriteFile_DirSyncError(t *testing.T) {
+	// Set up a temporary directory for testing.
+	tmpDir, err := os.MkdirTemp("", "test_atomic_writer")
+	if err != nil {
+		t.Fatalf("Failed to create temporary directory: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Must be true to trigger a directory sync.
+	syncWrites := true
+
+	t.Run("Mock open error", func(t *testing.T) {
+		path := filepath.Join(tmpDir, "test_file.txt")
+		data := []byte("Hello, world!")
+
+		writer := newAtomicWriter(&osFS{}, syncWrites)
+		writer.fs = &mockFS{
+			openFileFunc: func(_ string, _ int, _ fs.FileMode) (fs.File, error) {
+				return &mockFile{}, nil
+			},
+			openFunc: func(_ string) (fs.File, error) {
+				return nil, fs.ErrPermission
+			},
+		}
+
+		err = writer.WriteFile(path, data, false)
+
+		if !errors.Is(err, fs.ErrPermission) {
+			t.Errorf("Expected ErrPermission, but got %v", err)
+		}
+	})
+
+	t.Run("Mock close error", func(t *testing.T) {
+		path := filepath.Join(tmpDir, "test_file.txt")
+		data := []byte("Hello, world!")
+
+		writer := newAtomicWriter(&osFS{}, syncWrites)
+		writer.fs = &mockFS{
+			openFunc: func(name string) (fs.File, error) {
+				f := mockFile{
+					closeFunc: func() error { return TestError },
+				}
+				return &f, nil
+			},
+			openFileFunc: func(_ string, _ int, _ fs.FileMode) (fs.File, error) {
+				return &mockFile{}, nil
+			},
+		}
+
+		err = writer.WriteFile(path, data, false)
+
+		if !errors.Is(err, TestError) {
+			t.Errorf("Expected TestError, but got %v", err)
+		}
+	})
+}
+
+func TestStreamDir_MockFileSystemError(t *testing.T) {
+	t.Run("Cannot open dir", func(t *testing.T) {
+		fsys := &mockFS{
+			openFunc: func(_ string) (fs.File, error) {
+				return nil, fs.ErrPermission
+			},
+		}
+
+		err := streamDir(fsys, "test", "", Asc, func(filename string) (bool, error) {
+			return true, nil
+		})
+
+		if !errors.Is(err, fs.ErrPermission) {
+			t.Errorf("Expected ErrPermission, but got %v", err)
+		}
+	})
+
+	t.Run("Cannot read dir names", func(t *testing.T) {
+		fsys := &mockFS{
+			openFunc: func(_ string) (fs.File, error) {
+				f := mockFile{
+					readdirnamesFunc: func(_ int) ([]string, error) {
+						return nil, fs.ErrPermission
+					},
+				}
+				return &f, nil
+			},
+		}
+
+		err := streamDir(fsys, "test", "", Asc, func(filename string) (bool, error) {
+			return true, nil
+		})
+
+		if !errors.Is(err, fs.ErrPermission) {
+			t.Errorf("Expected ErrPermission, but got %v", err)
+		}
+	})
 }
 
 func TestMkdirs(t *testing.T) {
@@ -117,7 +235,7 @@ func TestMkdirs(t *testing.T) {
 			filepath.Join(os.TempDir(), "test-1234", "data"),
 			filepath.Join(os.TempDir(), "test-1234", "metadata"),
 		}
-		if err := mkdirs(paths, TestDirPermissions); err != nil {
+		if err := mkdirs(&osFS{}, paths, TestDirPermissions); err != nil {
 			t.Fatalf("mkdirs: %s", err)
 		}
 		// Quick check (not recursive)
@@ -130,7 +248,7 @@ func TestMkdirs(t *testing.T) {
 
 	t.Run("Error", func(t *testing.T) {
 		paths := []string{""}
-		err := mkdirs(paths, TestDirPermissions)
+		err := mkdirs(&osFS{}, paths, TestDirPermissions)
 		if err == nil {
 			t.Fatalf("expected error")
 		}

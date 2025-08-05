@@ -2,6 +2,7 @@ package sdb
 
 import (
 	"fmt"
+	"io"
 	"io/fs"
 	"math/rand/v2"
 	"os"
@@ -21,18 +22,20 @@ var (
 // When used together with O_SYNC, atomicWrite also provides some additional
 // durability guarantees.
 type atomicWriter struct {
+	fs             fileSystem
 	syncWrites     bool
 	diskSectorSize int
 	perm           os.FileMode
 }
 
-func newAtomicWriter(syncWrites bool) *atomicWriter {
+func newAtomicWriter(fsys fileSystem, syncWrites bool) *atomicWriter {
 	// Note: If we decide to ask the host system for the disk sector size,
 	// we can use the go `init` function for that and keep this constructor
 	// cleaner, without the need to return an error and also, without the
 	// need to query the os multiple times.
 	diskSectorSize := defaultDiskSectorSize
 	return &atomicWriter{
+		fs:             fsys,
 		syncWrites:     syncWrites,
 		diskSectorSize: diskSectorSize,
 		perm:           defaultPermissions,
@@ -50,13 +53,12 @@ func (w *atomicWriter) flag(excl bool) int {
 	return flag
 }
 
-func (w *atomicWriter) WriteFile(path string, data []byte, excl bool) error {
-	var err error
+func (w *atomicWriter) WriteFile(path string, data []byte, excl bool) (err error) {
 	defer func() {
 		// Sync the parent directory for more durability guarantees. See:
 		// - https://lwn.net/Articles/457667/#:~:text=When%20should%20you%20Fsync
 		if err == nil && w.syncWrites {
-			_ = syncFile(filepath.Dir(path))
+			err = syncFile(w.fs, filepath.Dir(path))
 		}
 	}()
 
@@ -90,31 +92,31 @@ func (w *atomicWriter) WriteFile(path string, data []byte, excl bool) error {
 // can leave the file in a partially written state.
 func (w *atomicWriter) _writeFile(name string, data []byte, excl bool) error {
 	// Adapted from `os.WriteFile()`
-	f, err := os.OpenFile(name, w.flag(excl), w.perm)
+	f, err := w.fs.OpenFile(name, w.flag(excl), w.perm)
 	if err != nil {
 		return err
 	}
-	_, err = f.Write(data)
+	_, err = f.(io.Writer).Write(data)
 	if err1 := f.Close(); err1 != nil && err == nil {
 		err = err1
 	}
 	return err
 }
 
-func mkdirs(paths []string, perm os.FileMode) error {
+func mkdirs(fs fileSystem, paths []string, perm os.FileMode) error {
 	for _, path := range paths {
-		if err := os.MkdirAll(path, perm); err != nil {
+		if err := fs.MkdirAll(path, perm); err != nil {
 			return fmt.Errorf("MkdirAll: %w", err)
 		}
 	}
 	return nil
 }
 
-func streamDir(dir string, start string, order int, fn func(filename string) (bool, error)) error {
+func streamDir(fs fileSystem, dir string, start string, order int, fn func(filename string) (bool, error)) error {
 	asc := order > Desc
 	needFilter := len(start) != 0
 
-	filenames, err := readDir(dir, order)
+	filenames, err := readDir(fs, dir, order)
 	if err != nil {
 		return fmt.Errorf("readDir: %w", err)
 	}
@@ -142,14 +144,17 @@ func streamDir(dir string, start string, order int, fn func(filename string) (bo
 	return nil
 }
 
-func readDir(dir string, order int) ([]string, error) {
-	f, err := os.Open(dir)
+func readDir(fs fileSystem, dir string, order int) ([]string, error) {
+	f, err := fs.Open(dir)
 	if err != nil {
 		return nil, fmt.Errorf("open: %w", err)
 	}
 	defer f.Close()
 
-	names, err := f.Readdirnames(-1)
+	type dirReader interface{ Readdirnames(n int) ([]string, error) }
+	ff := f.(dirReader)
+
+	names, err := ff.Readdirnames(-1)
 	if err != nil {
 		return nil, fmt.Errorf("readdirnames: %w", err)
 	}
@@ -166,9 +171,9 @@ func readDir(dir string, order int) ([]string, error) {
 
 // countRegularFiles walks the directory tree rooted at path and returns the
 // number of regular (non-directory) files it finds.
-func countRegularFiles(path string) (uint64, error) {
+func countRegularFiles(fsys fileSystem, path string) (uint64, error) {
 	var count uint64
-	err := filepath.WalkDir(path, func(_ string, d fs.DirEntry, err error) error {
+	err := fs.WalkDir(fsys, path, func(_ string, d fs.DirEntry, err error) error {
 		if d != nil && d.Type().IsRegular() {
 			count++
 		}
@@ -191,12 +196,16 @@ func makeTempPath(path string) string {
 	return tmpPath
 }
 
-func syncFile(path string) error {
-	f, err := os.Open(path)
+func syncFile(fsys fileSystem, path string) error {
+	f, err := fsys.Open(path)
 	if err != nil {
 		return fmt.Errorf("open: %w", err)
 	}
-	err = f.Sync()
+
+	type syncer interface{ Sync() error }
+	ff := f.(syncer)
+
+	err = ff.Sync()
 	if err1 := f.Close(); err1 != nil && err == nil {
 		err = err1
 	}

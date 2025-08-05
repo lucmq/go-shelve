@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io/fs"
 	"maps"
 	"os"
 	"path/filepath"
@@ -18,28 +19,32 @@ import (
 // Helpers
 
 var (
-	TestDirectory           = filepath.Join(os.TempDir(), "sdb-test")
-	TestFilesPerShardOption = withMaxFilesPerShard(3)
-	TestError               = errors.New("test error")
+	TestDirectory = filepath.Join(os.TempDir(), "sdb-test")
+
+	TestFilesPerShardOption   = withMaxFilesPerShard(3)
+	TestMillisecondSyncOption = withSyncInterval(30 * time.Millisecond)
+
+	TestError = errors.New("test error")
 )
 
 type TDB = *DB
 
 // Provides an Open function that creates a clean test database.
 func OpenTestDB() (*DB, error) {
-	open := NewOpenFunc(true, TestFilesPerShardOption)
+	open := NewOpenFunc(true)
 	return open()
 }
 
 // Same as OpenTestDB, but without the cleaning the database directory.
 func ReopenTestDB() (*DB, error) {
-	open := NewOpenFunc(false, TestFilesPerShardOption)
+	open := NewOpenFunc(false)
 	return open()
 }
 
 // NewOpenFunc is a factory for Open functions. If clean is true, then
 // the database directory is cleaned before creating the database.
 func NewOpenFunc(clean bool, opts ...Option) OpenFunc {
+	o := append([]Option{TestFilesPerShardOption}, opts...)
 	return func() (TDB, error) {
 		path := TestDirectory
 		if clean {
@@ -48,11 +53,11 @@ func NewOpenFunc(clean bool, opts ...Option) OpenFunc {
 				return nil, fmt.Errorf("remove path: %w", err)
 			}
 		}
-		return Open(path, opts...)
+		return Open(path, o...)
 	}
 }
 
-func CheckShardLayout(t *testing.T, db TDB, _ map[string]string) {
+func CheckShardLayout(t *testing.T, db *DB, _ map[string]string) {
 	// Get the list of shards on disk
 	shards, err := os.ReadDir(filepath.Join(db.path, dataDirectory))
 	if err != nil {
@@ -65,7 +70,7 @@ func CheckShardLayout(t *testing.T, db TDB, _ map[string]string) {
 			t.Errorf("read shard dir: %v", err)
 		}
 
-		// Check the number of files in the shard
+		// Check the number of files in the shard (must have count < max).
 		if int64(len(shardFiles)) > db.maxFilesPerShard {
 			t.Errorf("Too many files (%d) in shard: %s", len(shardFiles), dir.Name())
 		}
@@ -129,6 +134,17 @@ func TestDB_NoCache(t *testing.T) {
 	tests.TestAll(t)
 }
 
+func TestDB_MillisecondSync(t *testing.T) {
+	tests := NewDBTests(
+		NewOpenFunc(true, TestMillisecondSyncOption, TestFilesPerShardOption),
+		NewOpenFunc(false, TestMillisecondSyncOption, TestFilesPerShardOption),
+	)
+	tests.CheckInitialization = CheckInitialization
+	tests.SupportsSeeking = true
+	tests.SupportsReverseIteration = true
+	tests.TestAll(t)
+}
+
 func TestDB_SyncWrites(t *testing.T) {
 	tests := NewDBTests(
 		NewOpenFunc(true, WithSynchronousWrites(true), TestFilesPerShardOption),
@@ -137,8 +153,16 @@ func TestDB_SyncWrites(t *testing.T) {
 	tests.CheckInitialization = CheckInitialization
 	tests.SupportsSeeking = true
 	tests.SupportsReverseIteration = true
+
+	if testing.Short() {
+		tests.TestGet(t)
+		t.Skip("Skipping slow tests in short mode")
+	}
+
 	tests.TestAll(t)
 }
+
+// Additional Tests
 
 func TestOpen_WithOptions(t *testing.T) {
 	path := TestDirectory
@@ -174,6 +198,22 @@ func TestDB_Error(t *testing.T) {
 		err = db.Put(key, []byte("value"))
 		if !errors.Is(err, ErrKeyTooLarge) {
 			t.Errorf("Expected ErrKeyTooLarge, but got %v", err)
+		}
+	})
+
+	t.Run("Sync - mock metadata marshal error", func(t *testing.T) {
+		db, err := OpenTestDB()
+		if err != nil {
+			t.Errorf("Expected no error, but got %v", err)
+		}
+		defer db.Close()
+
+		db.metadataStore.marshalFn = func(v any) ([]byte, error) {
+			return nil, TestError
+		}
+
+		if err = db.Sync(); !errors.Is(err, TestError) {
+			t.Errorf("Expected TestError, but got %v", err)
 		}
 	})
 }
@@ -214,9 +254,222 @@ func TestDB_FileError_Items(t *testing.T) {
 	})
 }
 
+func TestDB_MockFileSystemError(t *testing.T) {
+	t.Run("Has - File cannot be read", func(t *testing.T) {
+		open := NewOpenFunc(true, WithCacheSize(0))
+		db := StartDatabase(t, open, nil)
+		defer db.Close()
+
+		db.fs = &mockFS{
+			statFunc: func(_ string) (fs.FileInfo, error) {
+				return nil, fs.ErrPermission
+			},
+			openFunc:     (&osFS{}).Open,
+			openFileFunc: (&osFS{}).OpenFile,
+		}
+
+		_, err := db.Has([]byte("key-1"))
+
+		if !errors.Is(err, fs.ErrPermission) {
+			t.Errorf("Expected fs.ErrPermission, but got %v", err)
+		}
+	})
+
+	t.Run("Get - File cannot be read", func(t *testing.T) {
+		open := NewOpenFunc(true, WithCacheSize(0))
+		db := StartDatabase(t, open, nil)
+		defer db.Close()
+
+		db.fs = &mockFS{
+			readFileFunc: func(_ string) ([]byte, error) {
+				return nil, fs.ErrPermission
+			},
+			openFunc:     (&osFS{}).Open,
+			openFileFunc: (&osFS{}).OpenFile,
+		}
+
+		_, err := db.Get([]byte("key-1"))
+
+		if !errors.Is(err, fs.ErrPermission) {
+			t.Errorf("Expected fs.ErrPermission, but got %v", err)
+		}
+	})
+
+	t.Run("Put - File cannot be read", func(t *testing.T) {
+		open := NewOpenFunc(true, WithCacheSize(0))
+		db := StartDatabase(t, open, nil)
+		defer db.Close()
+
+		db.fs = &mockFS{
+			statFunc: func(_ string) (fs.FileInfo, error) {
+				return nil, fs.ErrPermission
+			},
+			openFunc:     (&osFS{}).Open,
+			openFileFunc: (&osFS{}).OpenFile,
+		}
+
+		err := db.Put([]byte("key-1"), []byte("value-1"))
+
+		if !errors.Is(err, fs.ErrPermission) {
+			t.Errorf("Expected fs.ErrPermission, but got %v", err)
+		}
+	})
+
+	t.Run("Put - Shard cannot be split - readDir error", func(t *testing.T) {
+		seed := map[string]string{
+			"key-1": "value-1", "key-2": "value-2",
+			"key-3": "value-3", "key-4": "value-4",
+		}
+		open := NewOpenFunc(true, WithCacheSize(0), withMaxFilesPerShard(4))
+		db := StartDatabase(t, open, seed)
+		defer db.Close()
+
+		db.fs = &mockFS{
+			readDirFunc: func(_ string) ([]fs.DirEntry, error) {
+				return nil, fs.ErrPermission
+			},
+			statFunc:     (&osFS{}).Stat,
+			openFunc:     (&osFS{}).Open,
+			openFileFunc: (&osFS{}).OpenFile,
+		}
+
+		err := db.Put([]byte("key-99"), []byte("value-99"))
+
+		if !errors.Is(err, fs.ErrPermission) {
+			t.Errorf("Expected fs.ErrPermission, but got %v", err)
+		}
+	})
+
+	t.Run("Put - Shard cannot be split - mkdir error", func(t *testing.T) {
+		seed := map[string]string{
+			"key-1": "value-1", "key-2": "value-2",
+			"key-3": "value-3", "key-4": "value-4",
+		}
+		open := NewOpenFunc(true, WithCacheSize(0), withMaxFilesPerShard(4))
+		db := StartDatabase(t, open, seed)
+		defer db.Close()
+
+		db.fs = &mockFS{
+			mkdirAllFunc: func(_ string, _ fs.FileMode) error {
+				return fs.ErrPermission
+			},
+			readDirFunc:  (&osFS{}).ReadDir,
+			statFunc:     (&osFS{}).Stat,
+			openFunc:     (&osFS{}).Open,
+			openFileFunc: (&osFS{}).OpenFile,
+		}
+
+		err := db.Put([]byte("key-99"), []byte("value-99"))
+
+		if !errors.Is(err, fs.ErrPermission) {
+			t.Errorf("Expected fs.ErrPermission, but got %v", err)
+		}
+	})
+
+	t.Run("Put - Shard cannot be split - rename error", func(t *testing.T) {
+		seed := map[string]string{
+			"key-1": "value-1", "key-2": "value-2",
+			"key-3": "value-3", "key-4": "value-4",
+		}
+		open := NewOpenFunc(true, WithCacheSize(0), withMaxFilesPerShard(4))
+		db := StartDatabase(t, open, seed)
+		defer db.Close()
+
+		db.fs = &mockFS{
+			renameFunc: func(_, _ string) error {
+				return fs.ErrPermission
+			},
+			mkdirAllFunc: (&osFS{}).MkdirAll,
+			readDirFunc:  (&osFS{}).ReadDir,
+			statFunc:     (&osFS{}).Stat,
+			openFunc:     (&osFS{}).Open,
+			openFileFunc: (&osFS{}).OpenFile,
+		}
+
+		err := db.Put([]byte("key-99"), []byte("value-99"))
+
+		if !errors.Is(err, fs.ErrPermission) {
+			t.Errorf("Expected fs.ErrPermission, but got %v", err)
+		}
+	})
+
+	t.Run("Delete - File cannot be removed", func(t *testing.T) {
+		open := NewOpenFunc(true, WithCacheSize(0))
+		db := StartDatabase(t, open, nil)
+		defer db.Close()
+
+		db.fs = &mockFS{
+			removeFunc: func(_ string) error {
+				return fs.ErrPermission
+			},
+			openFunc:     (&osFS{}).Open,
+			openFileFunc: (&osFS{}).OpenFile,
+		}
+
+		err := db.Delete([]byte("key-1"))
+
+		if !errors.Is(err, fs.ErrPermission) {
+			t.Errorf("Expected fs.ErrPermission, but got %v", err)
+		}
+	})
+
+	t.Run("Items - File cannot be read", func(t *testing.T) {
+		seed := map[string]string{
+			"key-1": "value-1", "key-2": "value-2",
+			"key-3": "value-3", "key-4": "value-4",
+		}
+		open := NewOpenFunc(true, WithCacheSize(0))
+		db := StartDatabase(t, open, seed)
+		defer db.Close()
+
+		db.fs = &mockFS{
+			readFileFunc: func(_ string) ([]byte, error) {
+				return nil, fs.ErrPermission
+			},
+			openFunc:     (&osFS{}).Open,
+			openFileFunc: (&osFS{}).OpenFile,
+		}
+
+		err := db.Items(nil, 1, func(k, v []byte) (bool, error) {
+			return false, errors.New("should not be called")
+		})
+
+		if !errors.Is(err, os.ErrPermission) {
+			t.Errorf("Expected fs.ErrPermission, but got %v", err)
+		}
+	})
+
+	t.Run("Items - File deleted while iterating", func(t *testing.T) {
+		seed := map[string]string{
+			"key-1": "value-1", "key-2": "value-2",
+			"key-3": "value-3", "key-4": "value-4",
+		}
+		open := NewOpenFunc(true, WithCacheSize(0))
+		db := StartDatabase(t, open, seed)
+		defer db.Close()
+
+		db.fs = &mockFS{
+			readFileFunc: func(_ string) ([]byte, error) {
+				// Return fs.ErrNotExist to simulate files
+				// deleted while iterating.
+				return nil, fs.ErrNotExist
+			},
+			openFunc:     (&osFS{}).Open,
+			openFileFunc: (&osFS{}).OpenFile,
+		}
+
+		err := db.Items(nil, 1, func(k, v []byte) (bool, error) {
+			return false, errors.New("should not be called")
+		})
+		if err != nil {
+			t.Errorf("Expected no error, but got %v", err)
+		}
+	})
+}
+
 // Tests to check the internal sharding layout consistency.
 func TestDB_ShardLayout(t *testing.T) {
-	t.Run("Count < MaxCount after insertions", func(t *testing.T) {
+	t.Run("After many insertions", func(t *testing.T) {
 		// Arrange
 		seed := make(map[string]string)
 		for i := 0; i < 100; i++ {
@@ -226,7 +479,7 @@ func TestDB_ShardLayout(t *testing.T) {
 		}
 
 		// Act
-		open := NewOpenFunc(true, WithCacheSize(0))
+		open := NewOpenFunc(true, WithCacheSize(0), WithSynchronousWrites(true))
 		db := StartDatabase(t, open, seed)
 		defer db.Close()
 

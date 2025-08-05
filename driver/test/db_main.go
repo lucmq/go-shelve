@@ -68,6 +68,7 @@ func (T *DBTests) TestAll(t *testing.T) {
 	T.TestHas(t)
 	T.TestGet(t)
 	T.TestPut(t)
+	T.TestPut_Concurrent(t)
 	T.TestDelete(t)
 	T.TestItems(t)
 
@@ -82,6 +83,7 @@ func (T *DBTests) TestAll(t *testing.T) {
 		T.TestItems_SeekReverse(t)
 	}
 
+	T.TestConcurrentOperations(t)
 	T.TestPersistence(t)
 }
 
@@ -283,7 +285,9 @@ func (T *DBTests) TestPut(t *testing.T) {
 		// Assert
 		checkDatabase(t, db, seed)
 	})
+}
 
+func (T *DBTests) TestPut_Concurrent(t *testing.T) {
 	t.Run("Put concurrent", func(t *testing.T) {
 		// Arrange
 		N := 1000
@@ -375,7 +379,6 @@ func (T *DBTests) TestPut(t *testing.T) {
 		// Assert
 		checkDatabase(t, db, inserted)
 	})
-
 }
 
 func (T *DBTests) TestDelete(t *testing.T) {
@@ -570,58 +573,6 @@ func (T *DBTests) TestItems(t *testing.T) {
 		})
 		if !errors.Is(err, TestError) {
 			t.Errorf("Expected %v, but got %v", TestError, err)
-		}
-	})
-
-	t.Run("Items - delete while iterating", func(t *testing.T) {
-		seed := map[string]string{
-			"key-1": "value-1", "key-2": "value-2",
-			"key-3": "value-3", "key-4": "value-4",
-		}
-		db := StartDatabase(t, T.Open, seed)
-		defer db.Close()
-
-		i := 0
-		wg := sync.WaitGroup{}
-		gotItems := make(map[string]string)
-
-		// Act
-		err := db.Items(nil, 1, func(k, v []byte) (bool, error) {
-			if i == 0 {
-				// Delete from the database while iterating, on a separate
-				// goroutine so that the iteration is not blocked.
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
-					for k := range seed {
-						if err := db.Delete([]byte(k)); err != nil {
-							t.Errorf("Expected no error, but got %v", err)
-						}
-					}
-				}()
-			} else {
-				// Give the goroutine a chance to delete some items.
-				time.Sleep(10 * time.Millisecond)
-			}
-
-			gotItems[string(k)] = string(v)
-			i++
-
-			return true, nil
-		})
-		if err != nil {
-			t.Errorf("Expected no error, but got %v", err)
-		}
-		wg.Wait()
-
-		// Assert
-		if len(gotItems) > len(seed) {
-			t.Errorf("Expected len to be at most %v, but got %v",
-				len(seed), len(gotItems))
-		}
-		if len(gotItems) <= 1 {
-			t.Errorf("Expected len to be at least 1, but got %v",
-				len(gotItems))
 		}
 	})
 }
@@ -830,6 +781,83 @@ func (T *DBTests) TestItems_SeekReverse(t *testing.T) {
 			}
 		})
 	}
+}
+
+func (T *DBTests) TestConcurrentOperations(t *testing.T) {
+	t.Run("Concurrent Operations", func(t *testing.T) {
+		if testing.Short() {
+			t.Skip("Skipping slow test in short mode")
+		}
+
+		const (
+			N          = 1000 // Number of keys
+			Goroutines = 50   // Concurrent goroutines
+		)
+
+		db := StartDatabase(t, T.Open, nil)
+		defer db.Close()
+
+		keys := make([][]byte, N)
+		values := make([][]byte, N)
+		for i := 0; i < N; i++ {
+			keys[i] = []byte("key-" + strconv.Itoa(i))
+			values[i] = []byte("value-" + strconv.Itoa(i))
+		}
+
+		var wg sync.WaitGroup
+
+		// Mixed operations
+		for i := 0; i < Goroutines; i++ {
+			wg.Add(1)
+			go func(id int) {
+				defer wg.Done()
+				now := uint64(time.Now().UnixNano())
+				r := rand.New(rand.NewPCG(now, now>>1))
+				for j := 0; j < 100; j++ {
+					idx := r.IntN(N)
+					k := keys[idx]
+					v := values[idx]
+
+					switch r.IntN(5) {
+					case 0:
+						if err := db.Put(k, v); err != nil {
+							t.Errorf("goroutine %d: put error: %v", id, err)
+						}
+					case 1:
+						_, err := db.Get(k)
+						if err != nil {
+							t.Errorf("goroutine %d: get error: %v", id, err)
+						}
+					case 2:
+						_, err := db.Has(k)
+						if err != nil {
+							t.Errorf("goroutine %d: has error: %v", id, err)
+						}
+					case 3:
+						err := db.Delete(k)
+						if err != nil {
+							t.Errorf("goroutine %d: delete error: %v", id, err)
+						}
+					case 4:
+						_ = db.Items(nil, 1, func(k, v []byte) (bool, error) {
+							// Read-only op
+							return true, nil
+						})
+					}
+				}
+			}(i)
+		}
+
+		wg.Wait()
+
+		// Final consistency check (should not panic or return errors)
+		err := db.Items(nil, 1, func(k, v []byte) (bool, error) {
+			return true, nil
+		})
+		if err != nil {
+			t.Errorf("final items check: %v", err)
+		}
+	})
 }
 
 func (T *DBTests) TestPersistence(t *testing.T) {

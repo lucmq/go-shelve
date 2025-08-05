@@ -34,7 +34,7 @@ func (db *DB) shardPath(i int) string {
 }
 
 func (db *DB) loadShards() error {
-	entries, err := os.ReadDir(filepath.Join(db.path, dataDirectory))
+	entries, err := db.fs.ReadDir(filepath.Join(db.path, dataDirectory))
 	if err != nil {
 		return fmt.Errorf("read dir: %w", err)
 	}
@@ -42,7 +42,7 @@ func (db *DB) loadShards() error {
 
 	db.shards = make([]shard, len(entries))
 	for i, e := range entries {
-		shardEntries, err := os.ReadDir(filepath.Join(db.path, dataDirectory, e.Name()))
+		shardEntries, err := db.fs.ReadDir(filepath.Join(db.path, dataDirectory, e.Name()))
 		if err != nil {
 			return fmt.Errorf("read shard dir: %w", err)
 		}
@@ -63,7 +63,7 @@ func (db *DB) splitShard(idx int) error {
 	// 1. Enumerate & sort entries in the *old* directory.
 	oldPath := db.shardPath(idx)
 
-	files, err := os.ReadDir(oldPath)
+	files, err := db.fs.ReadDir(oldPath)
 	if err != nil {
 		return fmt.Errorf("read shard dir: %w", err)
 	}
@@ -75,11 +75,11 @@ func (db *DB) splitShard(idx int) error {
 	newPath := filepath.Join(db.path, dataDirectory, newLowMax)
 
 	// 2. Create the new directory and move the lower-half files into it.
-	if err = os.Mkdir(newPath, defaultDirPermissions); err != nil && !os.IsExist(err) {
+	if err = db.fs.MkdirAll(newPath, defaultDirPermissions); err != nil && !os.IsExist(err) {
 		return fmt.Errorf("mkdir: %w", err)
 	}
 	for _, e := range lowerHalf {
-		if err = os.Rename(
+		if err = db.fs.Rename(
 			filepath.Join(oldPath, e.Name()),
 			filepath.Join(newPath, e.Name()),
 		); err != nil {
@@ -94,7 +94,7 @@ func (db *DB) splitShard(idx int) error {
 	if db.syncWrites {
 		// Sync the parent directory for more durability guarantees. See:
 		// - https://lwn.net/Articles/457667/#:~:text=When%20should%20you%20Fsync
-		_ = syncFile(newPath)
+		_ = syncFile(db.fs, newPath)
 	}
 
 	return nil
