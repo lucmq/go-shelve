@@ -69,10 +69,12 @@ import (
 	"encoding/base32"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sync"
 	"time"
+	"unsafe"
 
 	"github.com/lucmq/go-shelve/sdb/internal"
 )
@@ -260,14 +262,14 @@ func (db *DB) Has(key []byte) (bool, error) {
 		return false, ErrDatabaseClosed
 	}
 
-	_, ok := db.cache.Get(string(key))
+	_, ok := cacheGet(db, key)
 	if ok {
 		return true, nil
 	}
 
 	path, _ := keyPath(db, key)
 
-	_, err := db.fs.Stat(path)
+	_, err := fs.Stat(db.fs, path)
 	if err != nil && !os.IsNotExist(err) {
 		return false, fmt.Errorf("stat: %w", err)
 	}
@@ -285,14 +287,14 @@ func (db *DB) Get(key []byte) ([]byte, error) {
 		return nil, ErrDatabaseClosed
 	}
 
-	v, ok := db.cache.Get(string(key))
+	v, ok := cacheGet(db, key)
 	if ok {
 		return v, nil
 	}
 
 	path, _ := keyPath(db, key)
 
-	value, err := db.fs.ReadFile(path)
+	value, err := fs.ReadFile(db.fs, path)
 	if err != nil && !os.IsNotExist(err) {
 		return nil, fmt.Errorf("read file: %w", err)
 	}
@@ -348,7 +350,7 @@ func (db *DB) Put(key, value []byte) error {
 }
 
 func putPath(db *DB, path string, value []byte) (updated bool, err error) {
-	_, err = db.fs.Stat(path)
+	_, err = fs.Stat(db.fs, path)
 	if err != nil && !os.IsNotExist(err) {
 		return false, fmt.Errorf("stat: %w", err)
 	}
@@ -468,13 +470,13 @@ func handleFileWithLock(db *DB, dir string, name string, fn Yield) (bool, error)
 	// Use the cache (but do not cache aside while iterating) because that would
 	// result in a lot of cache turnover with keys that might not be needed to be
 	// cached.
-	value, ok := db.cache.Get(string(key))
+	value, ok := cacheGet(db, key)
 	if ok {
 		return fn(key, value)
 	}
 
 	// Read from the disk.
-	v, err := db.fs.ReadFile(filepath.Join(dir, name))
+	v, err := fs.ReadFile(db.fs, filepath.Join(dir, name))
 	if errors.Is(err, os.ErrNotExist) {
 		// Deleted while iterating? Ignore.
 		return true, nil
@@ -501,6 +503,11 @@ func encodeKey(key []byte) string {
 
 func decodeKey(key string) ([]byte, error) {
 	return base32.HexEncoding.DecodeString(key)
+}
+
+func cacheGet(db *DB, key []byte) (cacheEntry, bool) {
+	s := unsafe.String(&key[0], len(key))
+	return db.cache.Get(s)
 }
 
 // prepareForMutation ensures we have enough information saved in persistent

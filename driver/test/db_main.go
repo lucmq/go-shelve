@@ -839,10 +839,13 @@ func (T *DBTests) TestConcurrentOperations(t *testing.T) {
 							t.Errorf("goroutine %d: delete error: %v", id, err)
 						}
 					case 4:
-						_ = db.Items(nil, 1, func(k, v []byte) (bool, error) {
+						err := db.Items(nil, 1, func(k, v []byte) (bool, error) {
 							// Read-only op
 							return true, nil
 						})
+						if err != nil {
+							t.Errorf("goroutine %d: items error: %v", id, err)
+						}
 					}
 				}
 			}(i)

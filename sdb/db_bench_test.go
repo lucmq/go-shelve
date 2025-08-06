@@ -10,6 +10,7 @@ import (
 var BenchmarkOptions = []Option{
 	WithSynchronousWrites(false),
 	WithCacheSize(DefaultCacheSize),
+	withMaxFilesPerShard(defaultMaxFilesPerShard),
 }
 
 func OpenBenchDB(b testing.TB, opts ...Option) *DB {

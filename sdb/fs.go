@@ -18,6 +18,65 @@ var (
 	defaultDirPermissions = os.FileMode(0700)
 )
 
+// fileSystem abstracts the subset of os/fs operations that SDB needs.
+//
+// Implementations are expected to wrap a concrete filesystem (e.g. the real
+// os filesystem, an in-memory mock, or an overlay that injects faults for
+// testing).  All methods MUST be safe for concurrent use by multiple
+// goroutines.
+//
+// Notes:
+//
+//   - Rename MUST be atomic: it should guarantee to either replace the target
+//     file entirely, or not change either the destination or the source.
+type fileSystem interface {
+	fs.FS
+
+	OpenFile(name string, flag int, perm fs.FileMode) (fs.File, error)
+	Remove(name string) error
+	Rename(oldpath, newpath string) error
+	MkdirAll(path string, perm fs.FileMode) error
+}
+
+// OS Filesystem
+
+// osFS is the implementation of fileSystem that delegates every call to the
+// standard library’s os package. The zero value is ready to use.
+type osFS struct{}
+
+// Compile-time interface check.
+var _ fileSystem = (*osFS)(nil)
+
+func (fs *osFS) Open(name string) (fs.File, error) {
+	return os.Open(name)
+}
+
+func (fs *osFS) OpenFile(name string, flag int, perm fs.FileMode) (fs.File, error) {
+	return os.OpenFile(name, flag, perm)
+}
+
+func (fs *osFS) Stat(name string) (fs.FileInfo, error) {
+	return os.Stat(name)
+}
+
+func (fs *osFS) ReadFile(name string) ([]byte, error) {
+	return os.ReadFile(name)
+}
+
+func (fs *osFS) Remove(name string) error {
+	return os.Remove(name)
+}
+
+func (fs *osFS) Rename(oldpath, newpath string) error {
+	return renameFile(oldpath, newpath)
+}
+
+func (fs *osFS) MkdirAll(path string, perm fs.FileMode) error {
+	return os.MkdirAll(path, perm)
+}
+
+// Atomic Writer
+
 // The main object of atomicWrite is to protect against incomplete writes.
 // When used together with O_SYNC, atomicWrite also provides some additional
 // durability guarantees.
@@ -103,6 +162,8 @@ func (w *atomicWriter) _writeFile(name string, data []byte, excl bool) error {
 	return err
 }
 
+// Utilities
+
 func mkdirs(fs fileSystem, paths []string, perm os.FileMode) error {
 	for _, path := range paths {
 		if err := fs.MkdirAll(path, perm); err != nil {
@@ -144,17 +205,8 @@ func streamDir(fs fileSystem, dir string, start string, order int, fn func(filen
 	return nil
 }
 
-func readDir(fs fileSystem, dir string, order int) ([]string, error) {
-	f, err := fs.Open(dir)
-	if err != nil {
-		return nil, fmt.Errorf("open: %w", err)
-	}
-	defer f.Close()
-
-	type dirReader interface{ Readdirnames(n int) ([]string, error) }
-	ff := f.(dirReader)
-
-	names, err := ff.Readdirnames(-1)
+func readDir(fsys fileSystem, dir string, order int) ([]string, error) {
+	names, err := readdirnames(fsys, dir)
 	if err != nil {
 		return nil, fmt.Errorf("readdirnames: %w", err)
 	}
@@ -167,6 +219,19 @@ func readDir(fs fileSystem, dir string, order int) ([]string, error) {
 	})
 
 	return names, nil
+}
+
+func readdirnames(fsys fs.FS, name string) ([]string, error) {
+	f, err := fsys.Open(name)
+	if err != nil {
+		return nil, fmt.Errorf("open: %w", err)
+	}
+	defer f.Close()
+
+	type dirReader interface{ Readdirnames(n int) ([]string, error) }
+	dir, _ := f.(dirReader)
+
+	return dir.Readdirnames(-1)
 }
 
 // countRegularFiles walks the directory tree rooted at path and returns the

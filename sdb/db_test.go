@@ -264,8 +264,6 @@ func TestDB_MockFileSystemError(t *testing.T) {
 			statFunc: func(_ string) (fs.FileInfo, error) {
 				return nil, fs.ErrPermission
 			},
-			openFunc:     (&osFS{}).Open,
-			openFileFunc: (&osFS{}).OpenFile,
 		}
 
 		_, err := db.Has([]byte("key-1"))
@@ -284,8 +282,6 @@ func TestDB_MockFileSystemError(t *testing.T) {
 			readFileFunc: func(_ string) ([]byte, error) {
 				return nil, fs.ErrPermission
 			},
-			openFunc:     (&osFS{}).Open,
-			openFileFunc: (&osFS{}).OpenFile,
 		}
 
 		_, err := db.Get([]byte("key-1"))
@@ -304,8 +300,6 @@ func TestDB_MockFileSystemError(t *testing.T) {
 			statFunc: func(_ string) (fs.FileInfo, error) {
 				return nil, fs.ErrPermission
 			},
-			openFunc:     (&osFS{}).Open,
-			openFileFunc: (&osFS{}).OpenFile,
 		}
 
 		err := db.Put([]byte("key-1"), []byte("value-1"))
@@ -325,12 +319,9 @@ func TestDB_MockFileSystemError(t *testing.T) {
 		defer db.Close()
 
 		db.fs = &mockFS{
-			readDirFunc: func(_ string) ([]fs.DirEntry, error) {
+			openFunc: func(_ string) (fs.File, error) {
 				return nil, fs.ErrPermission
 			},
-			statFunc:     (&osFS{}).Stat,
-			openFunc:     (&osFS{}).Open,
-			openFileFunc: (&osFS{}).OpenFile,
 		}
 
 		err := db.Put([]byte("key-99"), []byte("value-99"))
@@ -353,10 +344,6 @@ func TestDB_MockFileSystemError(t *testing.T) {
 			mkdirAllFunc: func(_ string, _ fs.FileMode) error {
 				return fs.ErrPermission
 			},
-			readDirFunc:  (&osFS{}).ReadDir,
-			statFunc:     (&osFS{}).Stat,
-			openFunc:     (&osFS{}).Open,
-			openFileFunc: (&osFS{}).OpenFile,
 		}
 
 		err := db.Put([]byte("key-99"), []byte("value-99"))
@@ -379,11 +366,6 @@ func TestDB_MockFileSystemError(t *testing.T) {
 			renameFunc: func(_, _ string) error {
 				return fs.ErrPermission
 			},
-			mkdirAllFunc: (&osFS{}).MkdirAll,
-			readDirFunc:  (&osFS{}).ReadDir,
-			statFunc:     (&osFS{}).Stat,
-			openFunc:     (&osFS{}).Open,
-			openFileFunc: (&osFS{}).OpenFile,
 		}
 
 		err := db.Put([]byte("key-99"), []byte("value-99"))
@@ -402,8 +384,6 @@ func TestDB_MockFileSystemError(t *testing.T) {
 			removeFunc: func(_ string) error {
 				return fs.ErrPermission
 			},
-			openFunc:     (&osFS{}).Open,
-			openFileFunc: (&osFS{}).OpenFile,
 		}
 
 		err := db.Delete([]byte("key-1"))
@@ -426,8 +406,6 @@ func TestDB_MockFileSystemError(t *testing.T) {
 			readFileFunc: func(_ string) ([]byte, error) {
 				return nil, fs.ErrPermission
 			},
-			openFunc:     (&osFS{}).Open,
-			openFileFunc: (&osFS{}).OpenFile,
 		}
 
 		err := db.Items(nil, 1, func(k, v []byte) (bool, error) {
@@ -454,8 +432,6 @@ func TestDB_MockFileSystemError(t *testing.T) {
 				// deleted while iterating.
 				return nil, fs.ErrNotExist
 			},
-			openFunc:     (&osFS{}).Open,
-			openFileFunc: (&osFS{}).OpenFile,
 		}
 
 		err := db.Items(nil, 1, func(k, v []byte) (bool, error) {

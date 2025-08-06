@@ -147,9 +147,6 @@ func TestDB_Init(t *testing.T) {
 				}
 				return (&osFS{}).Stat(name)
 			},
-			openFunc:     (&osFS{}).Open,
-			openFileFunc: (&osFS{}).OpenFile,
-			readFileFunc: (&osFS{}).ReadFile,
 		}
 
 		// Reopen without closing
@@ -292,8 +289,6 @@ func TestDB_Init_MockFileSystemError(t *testing.T) {
 				}
 				return (&osFS{}).Stat(name)
 			},
-			openFunc:     (&osFS{}).Open,
-			openFileFunc: (&osFS{}).OpenFile,
 		}
 		open := NewOpenFunc(true, WithCacheSize(0), withFileSystem(fsys))
 
@@ -308,10 +303,6 @@ func TestDB_Init_MockFileSystemError(t *testing.T) {
 			mkdirAllFunc: func(_ string, _ fs.FileMode) error {
 				return fs.ErrPermission
 			},
-			statFunc:     (&osFS{}).Stat,
-			openFunc:     (&osFS{}).Open,
-			openFileFunc: (&osFS{}).OpenFile,
-			readFileFunc: (&osFS{}).ReadFile,
 		}
 		open := NewOpenFunc(true, WithCacheSize(0), withFileSystem(fsys))
 
@@ -326,10 +317,6 @@ func TestDB_Init_MockFileSystemError(t *testing.T) {
 			openFileFunc: func(_ string, _ int, _ fs.FileMode) (fs.File, error) {
 				return nil, fs.ErrPermission
 			},
-			mkdirAllFunc: (&osFS{}).MkdirAll,
-			statFunc:     (&osFS{}).Stat,
-			openFunc:     (&osFS{}).Open,
-			readFileFunc: (&osFS{}).ReadFile,
 		}
 		open := NewOpenFunc(true, WithCacheSize(0), withFileSystem(fsys))
 
@@ -354,16 +341,12 @@ func TestDB_Init_MockFileSystemError(t *testing.T) {
 		dataDir := filepath.Join(dbPath, dataDirectory)
 
 		fsys := &mockFS{
-			readDirFunc: func(name string) ([]fs.DirEntry, error) {
+			openFunc: func(name string) (fs.File, error) {
 				if name == dataDir {
 					return nil, fs.ErrPermission
 				}
-				return (&osFS{}).ReadDir(name)
+				return (&osFS{}).Open(name)
 			},
-			statFunc:     (&osFS{}).Stat,
-			openFunc:     (&osFS{}).Open,
-			openFileFunc: (&osFS{}).OpenFile,
-			readFileFunc: (&osFS{}).ReadFile,
 		}
 		open := NewOpenFunc(false, WithCacheSize(0), withFileSystem(fsys))
 
@@ -388,16 +371,12 @@ func TestDB_Init_MockFileSystemError(t *testing.T) {
 		dataDir := filepath.Join(dbPath, dataDirectory, sentinelDir)
 
 		fsys := &mockFS{
-			readDirFunc: func(name string) ([]fs.DirEntry, error) {
+			openFunc: func(name string) (fs.File, error) {
 				if name == dataDir {
 					return nil, fs.ErrPermission
 				}
-				return (&osFS{}).ReadDir(name)
+				return (&osFS{}).Open(name)
 			},
-			statFunc:     (&osFS{}).Stat,
-			openFunc:     (&osFS{}).Open,
-			openFileFunc: (&osFS{}).OpenFile,
-			readFileFunc: (&osFS{}).ReadFile,
 		}
 		open := NewOpenFunc(false, WithCacheSize(0), withFileSystem(fsys))
 
@@ -427,10 +406,6 @@ func TestDB_Init_MockFileSystemError(t *testing.T) {
 				}
 				return (&osFS{}).ReadFile(name)
 			},
-			statFunc:     (&osFS{}).Stat,
-			openFunc:     (&osFS{}).Open,
-			openFileFunc: (&osFS{}).OpenFile,
-			readDirFunc:  (&osFS{}).ReadDir,
 		}
 		open := NewOpenFunc(false, WithCacheSize(0), withFileSystem(fsys))
 

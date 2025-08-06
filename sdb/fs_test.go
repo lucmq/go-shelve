@@ -115,7 +115,7 @@ func runAtomicWriterWriteFileTests(t *testing.T, writer *atomicWriter) {
 		path := filepath.Join(tmpDir, "large_file.txt")
 		data := make([]byte, 10*1024*1024) // 10MB
 
-		// Mock a filesystem that will fail to open the file.
+		// Mock a filesystem that will fail to close the file.
 		writer.fs = &mockFS{
 			openFileFunc: func(_ string, _ int, _ fs.FileMode) (fs.File, error) {
 				f := mockFile{
@@ -149,9 +149,6 @@ func TestAtomicWriter_WriteFile_DirSyncError(t *testing.T) {
 
 		writer := newAtomicWriter(&osFS{}, syncWrites)
 		writer.fs = &mockFS{
-			openFileFunc: func(_ string, _ int, _ fs.FileMode) (fs.File, error) {
-				return &mockFile{}, nil
-			},
 			openFunc: func(_ string) (fs.File, error) {
 				return nil, fs.ErrPermission
 			},
@@ -170,14 +167,11 @@ func TestAtomicWriter_WriteFile_DirSyncError(t *testing.T) {
 
 		writer := newAtomicWriter(&osFS{}, syncWrites)
 		writer.fs = &mockFS{
-			openFunc: func(name string) (fs.File, error) {
+			openFunc: func(_ string) (fs.File, error) {
 				f := mockFile{
 					closeFunc: func() error { return TestError },
 				}
 				return &f, nil
-			},
-			openFileFunc: func(_ string, _ int, _ fs.FileMode) (fs.File, error) {
-				return &mockFile{}, nil
 			},
 		}
 

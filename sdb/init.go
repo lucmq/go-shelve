@@ -2,6 +2,7 @@ package sdb
 
 import (
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 )
@@ -10,7 +11,7 @@ func initializeDatabase(db *DB) error {
 	db.metadataStore = newMetadataStore(db.fs, db.path)
 
 	// Check if the database already exists
-	fi, err := db.fs.Stat(db.path)
+	fi, err := fs.Stat(db.fs, db.path)
 	if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("stat path: %w", err)
 	}

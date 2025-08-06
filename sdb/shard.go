@@ -11,7 +11,7 @@ const (
 	// This limit is arbitrary and chosen to balance between:
 	// - the (small) cost of creating many directories
 	// - the (small) cost of walking a large number of files
-	defaultMaxFilesPerShard = 50_000
+	defaultMaxFilesPerShard = 30_000
 
 	// The sentinelDir is a special directory that is guaranteed to have a
 	// higher name than any other directory. It is created by the db and is
@@ -34,21 +34,24 @@ func (db *DB) shardPath(i int) string {
 }
 
 func (db *DB) loadShards() error {
-	entries, err := db.fs.ReadDir(filepath.Join(db.path, dataDirectory))
+	names, err := readdirnames(db.fs, filepath.Join(db.path, dataDirectory))
 	if err != nil {
-		return fmt.Errorf("read dir: %w", err)
+		return fmt.Errorf("read data dir: %w", err)
 	}
-	sort.Slice(entries, func(i, j int) bool { return entries[i].Name() < entries[j].Name() })
+	sort.Slice(names, func(i, j int) bool { return names[i] < names[j] })
 
-	db.shards = make([]shard, len(entries))
-	for i, e := range entries {
-		shardEntries, err := db.fs.ReadDir(filepath.Join(db.path, dataDirectory, e.Name()))
+	db.shards = make([]shard, len(names))
+	for i, name := range names {
+		shardEntries, err := readdirnames(
+			db.fs,
+			filepath.Join(db.path, dataDirectory, name),
+		)
 		if err != nil {
 			return fmt.Errorf("read shard dir: %w", err)
 		}
 
 		db.shards[i] = shard{
-			maxKey: e.Name(),
+			maxKey: name,
 			count:  uint32(len(shardEntries)),
 		}
 	}
@@ -63,15 +66,15 @@ func (db *DB) splitShard(idx int) error {
 	// 1. Enumerate & sort entries in the *old* directory.
 	oldPath := db.shardPath(idx)
 
-	files, err := db.fs.ReadDir(oldPath)
+	files, err := readdirnames(db.fs, oldPath)
 	if err != nil {
 		return fmt.Errorf("read shard dir: %w", err)
 	}
-	sort.Slice(files, func(i, j int) bool { return files[i].Name() < files[j].Name() })
+	sort.Slice(files, func(i, j int) bool { return files[i] < files[j] })
 
 	mid := len(files) / 2
 	lowerHalf := files[:mid]
-	newLowMax := files[mid-1].Name()
+	newLowMax := files[mid-1]
 	newPath := filepath.Join(db.path, dataDirectory, newLowMax)
 
 	// 2. Create the new directory and move the lower-half files into it.
@@ -80,8 +83,8 @@ func (db *DB) splitShard(idx int) error {
 	}
 	for _, e := range lowerHalf {
 		if err = db.fs.Rename(
-			filepath.Join(oldPath, e.Name()),
-			filepath.Join(newPath, e.Name()),
+			filepath.Join(oldPath, e),
+			filepath.Join(newPath, e),
 		); err != nil {
 			return fmt.Errorf("rename: %w", err)
 		}
@@ -105,12 +108,12 @@ func (db *DB) splitShard(idx int) error {
 // that the next split will happen at the correct boundary.
 //
 // The files argument must be sorted by file name.
-func updateSplitShards(db *DB, idx int, files []os.DirEntry) {
+func updateSplitShards(db *DB, idx int, files []string) {
 	mid := len(files) / 2
 
 	lowerHalf := files[:mid]
 	upperHalf := files[mid:]
-	newLowMax := files[mid-1].Name()
+	newLowMax := files[mid-1]
 
 	// make room for one more element (shift right)
 	db.shards = append(db.shards, shard{})
