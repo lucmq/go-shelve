@@ -1,5 +1,9 @@
 package internal
 
+import (
+	"sync/atomic"
+)
+
 // TKey is the key type used by the cache.
 type TKey = string
 
@@ -24,8 +28,8 @@ type Cache[TValue any] interface {
 // concurrency control.
 type DefaultCache[TValue any] struct {
 	cache  Cache[TValue]
-	hits   int
-	misses int
+	hits   atomic.Int64 // Atomic, since it's mutated by DefaultCache.Get.
+	misses atomic.Int64
 }
 
 // Assert DefaultCache implements Cache
@@ -59,10 +63,10 @@ func newCacheWithBase[TValue any](c Cache[TValue]) *DefaultCache[TValue] {
 func (c *DefaultCache[TValue]) Get(key TKey) (TValue, bool) {
 	v, ok := c.cache.Get(key)
 	if !ok {
-		c.misses++
+		c.misses.Add(1)
 		return v, false
 	}
-	c.hits++
+	c.hits.Add(1)
 	return v, true
 }
 
@@ -76,16 +80,16 @@ func (c *DefaultCache[TValue]) Delete(key TKey) { c.cache.Delete(key) }
 
 // Hits returns the number of cache hits (i.e. the number of Get calls that
 // found the value in the cache).
-func (c *DefaultCache[TValue]) Hits() int { return c.hits }
+func (c *DefaultCache[TValue]) Hits() int { return int(c.hits.Load()) }
 
 // Misses returns the number of cache misses (i.e. the number of Get calls that
 // did not find the value in the cache).
-func (c *DefaultCache[TValue]) Misses() int { return c.misses }
+func (c *DefaultCache[TValue]) Misses() int { return int(c.misses.Load()) }
 
 // ResetRatio resets the ratio of hits to misses.
 func (c *DefaultCache[TValue]) ResetRatio() {
-	c.misses = 0
-	c.hits = 0
+	c.misses.Store(0)
+	c.hits.Store(0)
 }
 
 // Unbounded Cache

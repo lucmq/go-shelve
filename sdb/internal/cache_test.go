@@ -2,8 +2,12 @@ package internal
 
 import (
 	"fmt"
+	"math/rand/v2"
 	"strconv"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 )
 
 // Tests
@@ -291,6 +295,68 @@ func TestPassThroughCache(t *testing.T) {
 	}
 	if value != zero {
 		t.Errorf("Expected value to be zero value, got %d", value)
+	}
+}
+
+// TestCacheConcurrent exercises the cache with many goroutines performing a
+// random mix of Put/Get/Delete operations.
+//
+// Run with:  go test -race ./internal
+func TestCacheConcurrent(t *testing.T) {
+	c := NewCache[int](-1)
+
+	// Pre-seed some keys so the readers/deleters have something to find.
+	const preload = 1_000
+	for i := 0; i < preload; i++ {
+		c.Put(strconv.Itoa(i), i)
+	}
+
+	const (
+		goroutines = 64     // number of concurrent workers
+		opsPerG    = 10_000 // operations per worker
+	)
+
+	var (
+		wg   sync.WaitGroup // waits for all worker goroutines to finish
+		mu   sync.RWMutex   // simulate a guarded cache
+		gets atomic.Uint64  // counts successful Get() operations
+	)
+	wg.Add(goroutines)
+
+	for g := 0; g < goroutines; g++ {
+		seed := uint64(time.Now().UnixNano()) + uint64(g)
+		go func() {
+			defer wg.Done()
+			r := rand.New(rand.NewPCG(seed, 0))
+			for i := 0; i < opsPerG; i++ {
+				v := r.IntN(preload * 2) // some keys will be misses
+				k := strconv.Itoa(v)
+				switch r.IntN(3) {
+				case 0:
+					mu.Lock()
+					c.Put(k, v)
+					mu.Unlock()
+				case 1:
+					mu.RLock()
+					c.Get(k)
+					gets.Add(1)
+					mu.RUnlock()
+				default:
+					mu.Lock()
+					c.Delete(k)
+					mu.Unlock()
+				}
+			}
+		}()
+	}
+
+	wg.Wait()
+
+	// The race detector is the real oracle; below is just a cheap sanity check.
+	totalCount := c.Hits() + c.Misses()
+	expected := int(gets.Load())
+	if totalCount != expected {
+		t.Errorf("Expected %d hits + misses, got %d", expected, totalCount)
 	}
 }
 
