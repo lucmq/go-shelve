@@ -451,10 +451,14 @@ func (db *DB) Items(start []byte, order int, fn Yield) error {
 		sh := db.shards[k]
 		dir := filepath.Join(db.path, dataDirectory, sh.maxKey)
 
-		if err := streamDir(db.fs, dir, encStart, order, func(filename string) (bool, error) {
+		keep, err := streamDir(db.fs, dir, encStart, order, func(filename string) (bool, error) {
 			return handleFileWithLock(db, dir, filename, fn)
-		}); err != nil {
+		})
+		if err != nil {
 			return err
+		}
+		if !keep {
+			return nil
 		}
 	}
 

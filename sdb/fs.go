@@ -173,13 +173,13 @@ func mkdirs(fs fileSystem, paths []string, perm os.FileMode) error {
 	return nil
 }
 
-func streamDir(fs fileSystem, dir string, start string, order int, fn func(filename string) (bool, error)) error {
+func streamDir(fs fileSystem, dir string, start string, order int, fn func(filename string) (bool, error)) (bool, error) {
 	asc := order > Desc
 	needFilter := len(start) != 0
 
 	filenames, err := readDir(fs, dir, order)
 	if err != nil {
-		return fmt.Errorf("readDir: %w", err)
+		return false, fmt.Errorf("readDir: %w", err)
 	}
 
 	for _, name := range filenames {
@@ -195,14 +195,14 @@ func streamDir(fs fileSystem, dir string, start string, order int, fn func(filen
 
 		keep, err := fn(name)
 		if err != nil {
-			return fmt.Errorf("fn: %w", err)
+			return false, fmt.Errorf("fn: %w", err)
 		}
 		if !keep {
-			return nil
+			return false, nil
 		}
 	}
 
-	return nil
+	return true, nil
 }
 
 func readDir(fsys fileSystem, dir string, order int) ([]string, error) {

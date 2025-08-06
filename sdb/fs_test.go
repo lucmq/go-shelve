@@ -191,7 +191,7 @@ func TestStreamDir_MockFileSystemError(t *testing.T) {
 			},
 		}
 
-		err := streamDir(fsys, "test", "", Asc, func(filename string) (bool, error) {
+		_, err := streamDir(fsys, "test", "", Asc, func(filename string) (bool, error) {
 			return true, nil
 		})
 
@@ -212,7 +212,7 @@ func TestStreamDir_MockFileSystemError(t *testing.T) {
 			},
 		}
 
-		err := streamDir(fsys, "test", "", Asc, func(filename string) (bool, error) {
+		_, err := streamDir(fsys, "test", "", Asc, func(filename string) (bool, error) {
 			return true, nil
 		})
 

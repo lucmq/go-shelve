@@ -236,7 +236,8 @@ func BenchmarkDB_Items(b *testing.B) {
 				}
 			}
 
-			b.ReportMetric(float64(itemsRead)/b.Elapsed().Seconds(), "ops/sec")
+			b.ReportMetric(float64(b.N)/b.Elapsed().Seconds(), "ops/sec")
+			b.ReportMetric(float64(itemsRead)/b.Elapsed().Seconds(), "items/sec")
 		})
 
 		db.Close()

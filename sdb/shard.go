@@ -9,8 +9,8 @@ import (
 
 const (
 	// This limit is arbitrary and chosen to balance between:
-	// - the (small) cost of creating many directories
-	// - the (small) cost of walking a large number of files
+	// - the cost of creating many directories
+	// - the cost of walking a large number of files
 	defaultMaxFilesPerShard = 30_000
 
 	// The sentinelDir is a special directory that is guaranteed to have a
