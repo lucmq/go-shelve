@@ -204,7 +204,7 @@ func TestDB_Init_MetadataError(t *testing.T) {
 			if err != nil {
 				t.Errorf("Expected no error, but got %v", err)
 			}
-			m.Version = 0
+			m.Version = "not-valid"
 			if err = db.metadataStore.Save(m); err != nil {
 				t.Errorf("Expected no error, but got %v", err)
 			}

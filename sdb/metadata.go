@@ -9,7 +9,7 @@ import (
 )
 
 type metadata struct {
-	Version      uint64
+	Version      string
 	TotalEntries uint64
 	Generation   uint64
 	Checkpoint   uint64
@@ -26,7 +26,7 @@ func makeMetadata() metadata {
 
 func (m *metadata) Validate() error {
 	if m.Version != version {
-		return fmt.Errorf("version mismatch: expected %d, got %d",
+		return fmt.Errorf("version mismatch: expected %s, got %s",
 			version, m.Version)
 	}
 	return nil

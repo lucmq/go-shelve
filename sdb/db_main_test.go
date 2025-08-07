@@ -431,7 +431,7 @@ func (T *DBTests) TestDelete(t *testing.T) {
 		defer db.Close()
 
 		// Act
-		for key, _ := range seed {
+		for key := range seed {
 			if err := db.Delete([]byte(key)); err != nil {
 				t.Errorf("Expected no error, but got %v", err)
 			}
@@ -454,7 +454,7 @@ func (T *DBTests) TestDelete(t *testing.T) {
 
 		// Act
 		var wg sync.WaitGroup
-		for k, _ := range seed {
+		for k := range seed {
 			key := k // Capture
 			wg.Add(1)
 			go func() {

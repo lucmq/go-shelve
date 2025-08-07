@@ -110,7 +110,7 @@ const (
 	metadataFilename  = "meta.gob"
 )
 
-const version = 1
+const version = "1.2"
 
 var (
 	// ErrKeyTooLarge is returned when a key exceeds the maximum length.

@@ -305,7 +305,7 @@ func TestPassThroughCache(t *testing.T) {
 func TestCacheConcurrent(t *testing.T) {
 	c := NewCache[int](-1)
 
-	// Pre-seed some keys so the readers/deleters have something to find.
+	// Pre-seed some keys so the readers/removers have something to find.
 	const preload = 1_000
 	for i := 0; i < preload; i++ {
 		c.Put(strconv.Itoa(i), i)

@@ -11,7 +11,7 @@ const (
 	// This limit is arbitrary and chosen to balance between:
 	// - the cost of creating many directories
 	// - the cost of walking a large number of files
-	defaultMaxFilesPerShard = 30_000
+	defaultMaxFilesPerShard = 10_000
 
 	// The sentinelDir is a special directory that is guaranteed to have a
 	// higher name than any other directory. It is created by the db and is
