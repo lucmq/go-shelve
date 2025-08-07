@@ -465,7 +465,7 @@ func (db *DB) Items(start []byte, order int, fn Yield) error {
 	return nil
 }
 
-func handleFileWithLock(db *DB, dir string, name string, fn Yield) (bool, error) {
+func handleFileWithLock(db *DB, dir, name string, fn Yield) (bool, error) {
 	key, err := decodeKey(name)
 	if err != nil {
 		return false, fmt.Errorf("decode key: %w", err)

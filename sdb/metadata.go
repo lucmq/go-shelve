@@ -80,7 +80,7 @@ func gobEncode(v any) ([]byte, error) {
 	return buf.Bytes(), err
 }
 
-func (s *metadataStore) unmarshal(data []byte) (metadata, error) {
+func (*metadataStore) unmarshal(data []byte) (metadata, error) {
 	dec := gob.NewDecoder(bytes.NewReader(data))
 	var m metadata
 	err := dec.Decode(&m)

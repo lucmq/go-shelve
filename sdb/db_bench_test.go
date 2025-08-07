@@ -221,7 +221,7 @@ func BenchmarkDB_Items(b *testing.B) {
 				err := db.Items(
 					nil,
 					bm.order,
-					func(key, value []byte) (bool, error) {
+					func(_, _ []byte) (bool, error) {
 						itemsRead++
 						n++
 						if n >= bm.batchSize {

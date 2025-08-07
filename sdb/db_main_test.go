@@ -43,7 +43,7 @@ func NewDBTests(open, reopen OpenFunc) *DBTests {
 	return &DBTests{
 		Open:                open,
 		Reopen:              reopen,
-		CheckInitialization: func(t *testing.T, db TDB) {},
+		CheckInitialization: func(*testing.T, TDB) {},
 	}
 }
 
@@ -568,7 +568,7 @@ func (T *DBTests) TestItems(t *testing.T) {
 		defer db.Close()
 
 		// Act / Assert
-		err := db.Items([]byte{}, 1, func(k, v []byte) (bool, error) {
+		err := db.Items([]byte{}, 1, func(_, _ []byte) (bool, error) {
 			return true, TestError
 		})
 		if !errors.Is(err, TestError) {
@@ -839,7 +839,7 @@ func (T *DBTests) TestConcurrentOperations(t *testing.T) {
 							t.Errorf("goroutine %d: delete error: %v", id, err)
 						}
 					case 4:
-						err := db.Items(nil, 1, func(k, v []byte) (bool, error) {
+						err := db.Items(nil, 1, func(_, _ []byte) (bool, error) {
 							// Read-only op
 							return true, nil
 						})
@@ -854,7 +854,7 @@ func (T *DBTests) TestConcurrentOperations(t *testing.T) {
 		wg.Wait()
 
 		// Final consistency check (should not panic or return errors)
-		err := db.Items(nil, 1, func(k, v []byte) (bool, error) {
+		err := db.Items(nil, 1, func(_, _ []byte) (bool, error) {
 			return true, nil
 		})
 		if err != nil {

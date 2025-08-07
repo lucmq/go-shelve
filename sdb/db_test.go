@@ -208,7 +208,7 @@ func TestDB_Error(t *testing.T) {
 		}
 		defer db.Close()
 
-		db.metadataStore.marshalFn = func(v any) ([]byte, error) {
+		db.metadataStore.marshalFn = func(_ any) ([]byte, error) {
 			return nil, TestError
 		}
 
@@ -216,13 +216,6 @@ func TestDB_Error(t *testing.T) {
 			t.Errorf("Expected TestError, but got %v", err)
 		}
 	})
-}
-
-// Tests boundary cases where a file representing a database record
-// becomes inconsistent or corrupted.
-func TestDB_FileError(t *testing.T) {
-	// Note: This function serves as a placeholder for future tests. It may be used
-	// if we decide to implement CRC checks in the data file to ensure consistency.
 }
 
 // Tests for boundary cases where the file that represent a database
@@ -245,7 +238,7 @@ func TestDB_FileError_Items(t *testing.T) {
 			t.Fatalf("Expected no error, but got %v", err)
 		}
 
-		err = db.Items(nil, 1, func(k, v []byte) (bool, error) {
+		err = db.Items(nil, 1, func(_, _ []byte) (bool, error) {
 			return true, nil
 		})
 		if err == nil {
@@ -408,7 +401,7 @@ func TestDB_MockFileSystemError(t *testing.T) {
 			},
 		}
 
-		err := db.Items(nil, 1, func(k, v []byte) (bool, error) {
+		err := db.Items(nil, 1, func(_, _ []byte) (bool, error) {
 			return false, errors.New("should not be called")
 		})
 
@@ -434,7 +427,7 @@ func TestDB_MockFileSystemError(t *testing.T) {
 			},
 		}
 
-		err := db.Items(nil, 1, func(k, v []byte) (bool, error) {
+		err := db.Items(nil, 1, func(_, _ []byte) (bool, error) {
 			return false, errors.New("should not be called")
 		})
 		if err != nil {
@@ -718,7 +711,7 @@ func TestOperationsOnClosedDB(t *testing.T) {
 	t.Run("Items - Empty DB", func(t *testing.T) {
 		db := getClosedDB(t, nil)
 
-		err := db.Items(nil, 1, func(k, v []byte) (bool, error) {
+		err := db.Items(nil, 1, func(_, _ []byte) (bool, error) {
 			return true, nil
 		})
 		if !errors.Is(err, ErrDatabaseClosed) {
@@ -732,7 +725,7 @@ func TestOperationsOnClosedDB(t *testing.T) {
 			"key-3": "value-3", "key-4": "value-4",
 		})
 
-		err := db.Items(nil, 1, func(k, v []byte) (bool, error) {
+		err := db.Items(nil, 1, func(_, _ []byte) (bool, error) {
 			return true, nil
 		})
 		if !errors.Is(err, ErrDatabaseClosed) {
@@ -756,7 +749,7 @@ func TestOperationsOnClosedDB(t *testing.T) {
 		i := 0
 		wg := sync.WaitGroup{}
 
-		err := db.Items(nil, 1, func(k, v []byte) (bool, error) {
+		err := db.Items(nil, 1, func(_, _ []byte) (bool, error) {
 			if i == 0 {
 				// Close the database while iterating, on a separate goroutine
 				// so that the iteration is not blocked.

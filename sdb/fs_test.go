@@ -73,7 +73,10 @@ func runAtomicWriterWriteFileTests(t *testing.T, writer *atomicWriter) {
 		if err != nil {
 			t.Fatalf("Failed to create existing file: %v", err)
 		}
-		_, err = f.Write([]byte("Existing data"))
+		_, err = f.WriteString("Existing data")
+		if err != nil {
+			t.Fatalf("Failed to write file contents: %v", err)
+		}
 
 		// Attempt to write with exclusive mode enabled
 		err = writer.WriteFile(path, data, true)

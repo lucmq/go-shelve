@@ -47,31 +47,31 @@ type osFS struct{}
 // Compile-time interface check.
 var _ fileSystem = (*osFS)(nil)
 
-func (fs *osFS) Open(name string) (fs.File, error) {
+func (*osFS) Open(name string) (fs.File, error) {
 	return os.Open(name)
 }
 
-func (fs *osFS) OpenFile(name string, flag int, perm fs.FileMode) (fs.File, error) {
+func (*osFS) OpenFile(name string, flag int, perm fs.FileMode) (fs.File, error) {
 	return os.OpenFile(name, flag, perm)
 }
 
-func (fs *osFS) Stat(name string) (fs.FileInfo, error) {
+func (*osFS) Stat(name string) (fs.FileInfo, error) {
 	return os.Stat(name)
 }
 
-func (fs *osFS) ReadFile(name string) ([]byte, error) {
+func (*osFS) ReadFile(name string) ([]byte, error) {
 	return os.ReadFile(name)
 }
 
-func (fs *osFS) Remove(name string) error {
+func (*osFS) Remove(name string) error {
 	return os.Remove(name)
 }
 
-func (fs *osFS) Rename(oldpath, newpath string) error {
+func (*osFS) Rename(oldpath, newpath string) error {
 	return renameFile(oldpath, newpath)
 }
 
-func (fs *osFS) MkdirAll(path string, perm fs.FileMode) error {
+func (*osFS) MkdirAll(path string, perm fs.FileMode) error {
 	return os.MkdirAll(path, perm)
 }
 
@@ -173,9 +173,9 @@ func mkdirs(fs fileSystem, paths []string, perm os.FileMode) error {
 	return nil
 }
 
-func streamDir(fs fileSystem, dir string, start string, order int, fn func(filename string) (bool, error)) (bool, error) {
+func streamDir(fs fileSystem, dir, start string, order int, fn func(filename string) (bool, error)) (bool, error) {
 	asc := order > Desc
-	needFilter := len(start) != 0
+	needFilter := start != ""
 
 	filenames, err := readDir(fs, dir, order)
 	if err != nil {
