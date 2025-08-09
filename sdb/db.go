@@ -69,10 +69,12 @@ import (
 	"encoding/base32"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sync"
 	"time"
+	"unsafe"
 
 	"github.com/lucmq/go-shelve/sdb/internal"
 )
@@ -105,9 +107,10 @@ const (
 const (
 	dataDirectory     = "data"
 	metadataDirectory = "meta"
+	metadataFilename  = "meta.gob"
 )
 
-const version = 1
+const version = "1.2"
 
 var (
 	// ErrKeyTooLarge is returned when a key exceeds the maximum length.
@@ -127,12 +130,14 @@ type Yield = func(key, value []byte) (bool, error)
 //
 // A DB is safe for concurrent use by multiple goroutines.
 type DB struct {
-	mu       sync.RWMutex
-	path     string
-	metadata metadata
-	shards   []shard
-	cache    internal.Cache[cacheEntry]
-	closed   bool
+	mu            sync.RWMutex
+	path          string
+	metadata      metadata
+	metadataStore *metadataStore
+	shards        []shard
+	cache         internal.Cache[cacheEntry]
+	fs            fileSystem
+	closed        bool
 
 	// Controls the background sync loop.
 	done chan struct{}
@@ -144,7 +149,8 @@ type DB struct {
 	// autoSync enables the background sync loop. Can be removed if a WAL
 	// is adopted for consistency, since the WAL would handle the sync
 	// loop unnecessary.
-	autoSync bool
+	autoSync     bool
+	syncInterval time.Duration
 }
 
 // cacheEntry represents an entry in the cache.
@@ -160,10 +166,12 @@ func Open(path string, options ...Option) (*DB, error) {
 		metadata:         makeMetadata(),
 		shards:           []shard{{maxKey: sentinelDir}},
 		cache:            internal.NewCache[cacheEntry](-1),
+		fs:               &osFS{},
 		done:             make(chan struct{}),
 		maxFilesPerShard: defaultMaxFilesPerShard,
 		syncWrites:       false,
 		autoSync:         true,
+		syncInterval:     metadataSyncInterval,
 	}
 
 	// Apply options.
@@ -254,14 +262,14 @@ func (db *DB) Has(key []byte) (bool, error) {
 		return false, ErrDatabaseClosed
 	}
 
-	_, ok := db.cache.Get(string(key))
+	_, ok := cacheGet(db, key)
 	if ok {
 		return true, nil
 	}
 
 	path, _ := keyPath(db, key)
 
-	_, err := os.Stat(path)
+	_, err := fs.Stat(db.fs, path)
 	if err != nil && !os.IsNotExist(err) {
 		return false, fmt.Errorf("stat: %w", err)
 	}
@@ -279,14 +287,14 @@ func (db *DB) Get(key []byte) ([]byte, error) {
 		return nil, ErrDatabaseClosed
 	}
 
-	v, ok := db.cache.Get(string(key))
+	v, ok := cacheGet(db, key)
 	if ok {
 		return v, nil
 	}
 
 	path, _ := keyPath(db, key)
 
-	value, err := os.ReadFile(path)
+	value, err := fs.ReadFile(db.fs, path)
 	if err != nil && !os.IsNotExist(err) {
 		return nil, fmt.Errorf("read file: %w", err)
 	}
@@ -342,7 +350,7 @@ func (db *DB) Put(key, value []byte) error {
 }
 
 func putPath(db *DB, path string, value []byte) (updated bool, err error) {
-	_, err = os.Stat(path)
+	_, err = fs.Stat(db.fs, path)
 	if err != nil && !os.IsNotExist(err) {
 		return false, fmt.Errorf("stat: %w", err)
 	}
@@ -350,7 +358,7 @@ func putPath(db *DB, path string, value []byte) (updated bool, err error) {
 		updated = true
 	}
 
-	writer := newAtomicWriter(db.syncWrites)
+	writer := newAtomicWriter(db.fs, db.syncWrites)
 	err = writer.WriteFile(path, value, !updated)
 	return updated, err
 }
@@ -371,7 +379,7 @@ func (db *DB) Delete(key []byte) error {
 	sh := &db.shards[shardID]
 
 	var deleted bool
-	err := os.Remove(path)
+	err := db.fs.Remove(path)
 	if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("remove: %w", err)
 	}
@@ -443,17 +451,21 @@ func (db *DB) Items(start []byte, order int, fn Yield) error {
 		sh := db.shards[k]
 		dir := filepath.Join(db.path, dataDirectory, sh.maxKey)
 
-		if err := streamDir(dir, encStart, order, func(filename string) (bool, error) {
+		keep, err := streamDir(db.fs, dir, encStart, order, func(filename string) (bool, error) {
 			return handleFileWithLock(db, dir, filename, fn)
-		}); err != nil {
+		})
+		if err != nil {
 			return err
+		}
+		if !keep {
+			return nil
 		}
 	}
 
 	return nil
 }
 
-func handleFileWithLock(db *DB, dir string, name string, fn Yield) (bool, error) {
+func handleFileWithLock(db *DB, dir, name string, fn Yield) (bool, error) {
 	key, err := decodeKey(name)
 	if err != nil {
 		return false, fmt.Errorf("decode key: %w", err)
@@ -462,13 +474,13 @@ func handleFileWithLock(db *DB, dir string, name string, fn Yield) (bool, error)
 	// Use the cache (but do not cache aside while iterating) because that would
 	// result in a lot of cache turnover with keys that might not be needed to be
 	// cached.
-	value, ok := db.cache.Get(string(key))
+	value, ok := cacheGet(db, key)
 	if ok {
 		return fn(key, value)
 	}
 
 	// Read from the disk.
-	v, err := os.ReadFile(filepath.Join(dir, name))
+	v, err := fs.ReadFile(db.fs, filepath.Join(dir, name))
 	if errors.Is(err, os.ErrNotExist) {
 		// Deleted while iterating? Ignore.
 		return true, nil
@@ -495,6 +507,11 @@ func encodeKey(key []byte) string {
 
 func decodeKey(key string) ([]byte, error) {
 	return base32.HexEncoding.DecodeString(key)
+}
+
+func cacheGet(db *DB, key []byte) (cacheEntry, bool) {
+	s := unsafe.String(&key[0], len(key))
+	return db.cache.Get(s)
 }
 
 // prepareForMutation ensures we have enough information saved in persistent
@@ -526,14 +543,14 @@ func prepareForMutation(db *DB) error {
 	db.metadata.Generation = db.metadata.Checkpoint + 1
 
 	// Sync the metadata
-	return db.metadata.Save(db.path)
+	return db.metadataStore.Save(db.metadata)
 }
 
 func syncInternal(db *DB) error {
 	// Mark as consistent
 	db.metadata.Checkpoint = db.metadata.Generation
 
-	return db.metadata.Save(db.path)
+	return db.metadataStore.Save(db.metadata)
 }
 
 // syncMetadata periodically syncs the metadata to persistent storage.
@@ -545,7 +562,7 @@ func syncInternal(db *DB) error {
 func syncMetadata(db *DB) {
 	defer db.wg.Done()
 
-	ticker := time.NewTicker(metadataSyncInterval)
+	ticker := time.NewTicker(db.syncInterval)
 	defer ticker.Stop()
 
 	for {

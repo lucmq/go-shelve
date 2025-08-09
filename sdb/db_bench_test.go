@@ -10,6 +10,7 @@ import (
 var BenchmarkOptions = []Option{
 	WithSynchronousWrites(false),
 	WithCacheSize(DefaultCacheSize),
+	withMaxFilesPerShard(defaultMaxFilesPerShard),
 }
 
 func OpenBenchDB(b testing.TB, opts ...Option) *DB {
@@ -220,7 +221,7 @@ func BenchmarkDB_Items(b *testing.B) {
 				err := db.Items(
 					nil,
 					bm.order,
-					func(key, value []byte) (bool, error) {
+					func(_, _ []byte) (bool, error) {
 						itemsRead++
 						n++
 						if n >= bm.batchSize {
@@ -235,7 +236,8 @@ func BenchmarkDB_Items(b *testing.B) {
 				}
 			}
 
-			b.ReportMetric(float64(itemsRead)/b.Elapsed().Seconds(), "ops/sec")
+			b.ReportMetric(float64(b.N)/b.Elapsed().Seconds(), "ops/sec")
+			b.ReportMetric(float64(itemsRead)/b.Elapsed().Seconds(), "items/sec")
 		})
 
 		db.Close()
