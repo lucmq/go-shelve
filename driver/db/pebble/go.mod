@@ -4,8 +4,8 @@ go 1.22.0
 
 require (
 	github.com/cockroachdb/pebble v1.1.5
-	github.com/lucmq/go-shelve v1.1.0
-	github.com/lucmq/go-shelve/driver v1.1.0
+	github.com/lucmq/go-shelve v1.2.0
+	github.com/lucmq/go-shelve/driver v1.2.0
 )
 
 require (

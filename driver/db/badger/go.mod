@@ -6,8 +6,8 @@ toolchain go1.24.0
 
 require (
 	github.com/dgraph-io/badger/v3 v3.2103.5
-	github.com/lucmq/go-shelve v1.1.0
-	github.com/lucmq/go-shelve/driver v1.1.0
+	github.com/lucmq/go-shelve v1.2.0
+	github.com/lucmq/go-shelve/driver v1.2.0
 )
 
 require (
