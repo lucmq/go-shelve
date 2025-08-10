@@ -173,29 +173,35 @@ func handleLen(store *Shelf) error {
 // List items, keys, or values with optional filters.
 func handleItems(store *Shelf, mode string, args []string) error {
 	fs := flag.NewFlagSet(mode, flag.ContinueOnError)
-	start := fs.String("start", "", "Start key (inclusive)")
-	end := fs.String("end", "", "End key (exclusive)")
+	start := fs.String("start", "", "Inclusive start key (Asc: k ≥ start, Desc: k ≤ start)")
+	end := fs.String("end", "", "Exclusive end key (Asc: k < end,  Desc: k > end)")
 	limit := fs.Int("limit", shelve.All, "Maximum number of items")
+	desc := fs.Bool("desc", false, "Iterate in descending order")
 
 	if err := fs.Parse(args); err != nil {
 		return fmt.Errorf("parse flags: %w", err)
 	}
 
+	order := shelve.Asc
+	if *desc {
+		order = shelve.Desc
+	}
+
 	switch mode {
 	case "items":
-		return printItems(store, start, end, *limit)
+		return printItems(store, start, end, order, *limit)
 	case "keys":
-		return printKeys(store, start, end, *limit)
+		return printKeys(store, start, end, order, *limit)
 	case "values":
-		return printValues(store, start, end, *limit)
+		return printValues(store, start, end, order, *limit)
 	default:
 		return fmt.Errorf("invalid mode: %s", mode)
 	}
 }
 
 // Helper: Print key-value pairs.
-func printItems(store *Shelf, start, end *string, limit int) error {
-	return store.Items(start, limit, shelve.Asc, func(key, value string) (bool, error) {
+func printItems(store *Shelf, start, end *string, order, limit int) error {
+	return store.Items(start, limit, order, func(key, value string) (bool, error) {
 		if *end != "" && key >= *end {
 			return false, nil
 		}
@@ -205,8 +211,8 @@ func printItems(store *Shelf, start, end *string, limit int) error {
 }
 
 // Helper: Print keys only.
-func printKeys(store *Shelf, start, end *string, limit int) error {
-	return store.Keys(start, limit, shelve.Asc, func(key, _ string) (bool, error) {
+func printKeys(store *Shelf, start, end *string, order, limit int) error {
+	return store.Keys(start, limit, order, func(key, _ string) (bool, error) {
 		if *end != "" && key >= *end {
 			return false, nil
 		}
@@ -216,8 +222,8 @@ func printKeys(store *Shelf, start, end *string, limit int) error {
 }
 
 // Helper: Print values only.
-func printValues(store *Shelf, start, end *string, limit int) error {
-	return store.Items(start, limit, shelve.Asc, func(key, value string) (bool, error) {
+func printValues(store *Shelf, start, end *string, order, limit int) error {
+	return store.Items(start, limit, order, func(key, value string) (bool, error) {
 		if *end != "" && key >= *end {
 			return false, nil
 		}

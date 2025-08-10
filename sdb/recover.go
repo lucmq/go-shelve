@@ -19,7 +19,7 @@ func recoverDatabase(db *DB) error {
 	// files in the data folder and updating the metadata.
 	dataRoot := filepath.Join(db.path, dataDirectory)
 
-	totalItems, err := countItems(dataRoot)
+	totalItems, err := countItems(db.fs, dataRoot)
 	if err != nil {
 		return fmt.Errorf("count items: %w", err)
 	}
@@ -27,14 +27,10 @@ func recoverDatabase(db *DB) error {
 	db.metadata.TotalEntries = totalItems
 	db.metadata.Checkpoint = db.metadata.Generation
 
-	err = db.metadata.Save(db.path)
-	if err != nil {
-		return fmt.Errorf("sync metadata: %w", err)
-	}
-	return nil
+	return db.metadataStore.Save(db.metadata)
 }
 
-func countItems(path string) (uint64, error) {
+func countItems(fsys fileSystem, path string) (uint64, error) {
 	// Each database record is represented by a regular file.
-	return countFiles(path)
+	return countRegularFiles(fsys, path)
 }

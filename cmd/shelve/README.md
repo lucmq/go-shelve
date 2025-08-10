@@ -110,6 +110,32 @@ shelve items | sort
 
 ---
 
+## Scan semantics
+
+The `items` and `keys` commands iterate in deterministic lexical order.
+
+- **Ascending** order by default. Pass `-desc` for reverse order.
+- **Start** (`-start <key>`): iteration begins at the first key **≥ start** (asc) or **≤ start** (desc). *Inclusive.*
+- **End** (`-end <key>`): iteration stops **before** the first key **≥ end** (asc) or **≤ end** (desc). *Exclusive.*
+- **Limit** (`-limit N`): at most N results are printed.
+
+These are half-open ranges `[start, end)`, which compose without overlap:
+
+```sh
+shelve put a 1 b 2 c 3 d 4 e 5
+
+# Prints a, b
+shelve items -end c
+
+# Prints c, d
+shelve items -start c -end e
+
+# Prints d, c (reverse)
+shelve items -desc -start d -end b
+```
+
+---
+
 ## Storage Format
 
 Shelves are stored as key-sorted files under the path specified by `-path`. By default, this is `.store` in the current directory.

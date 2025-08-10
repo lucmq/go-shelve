@@ -2,6 +2,7 @@
 package bboltd
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 
@@ -171,13 +172,29 @@ func (s *Store) Items(
 }
 
 func seek(c *bbolt.Cursor, start []byte, order int) (k, v []byte) {
-	if len(start) != 0 {
+	// 1. Ascending
+	if order >= 0 {
+		if len(start) == 0 {
+			return c.First()
+		}
 		return c.Seek(start)
 	}
-	if order < 0 {
+
+	// 2. Descending (order < 0)
+	if len(start) == 0 {
 		return c.Last()
 	}
-	return c.First()
+
+	k, v = c.Seek(start)
+	if len(k) == 0 {
+		// Got past the last key
+		return c.Last()
+	}
+	if bytes.Compare(k, start) > 0 {
+		// Seek() returned a key greater than start
+		return c.Prev()
+	}
+	return
 }
 
 func next(c *bbolt.Cursor, order int) (k, v []byte) {

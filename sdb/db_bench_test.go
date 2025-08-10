@@ -10,6 +10,7 @@ import (
 var BenchmarkOptions = []Option{
 	WithSynchronousWrites(false),
 	WithCacheSize(DefaultCacheSize),
+	withMaxFilesPerShard(defaultMaxFilesPerShard),
 }
 
 func OpenBenchDB(b testing.TB, opts ...Option) *DB {
@@ -170,18 +171,21 @@ func BenchmarkDB_Get(b *testing.B) {
 func BenchmarkDB_Items(b *testing.B) {
 	benchmarks := []struct {
 		name      string
+		order     int
 		seedSize  int
 		batchSize int
 		opts      []Option // Additions to the default options
 	}{
 		{
 			name:      "Cache",
+			order:     Asc,
 			seedSize:  100000,
 			batchSize: 1000,
 			opts:      []Option{WithCacheSize(-1)},
 		},
 		{
 			name:      "No Cache",
+			order:     Asc,
 			seedSize:  100000,
 			batchSize: 1000,
 			opts:      []Option{WithCacheSize(0)},
@@ -216,8 +220,8 @@ func BenchmarkDB_Items(b *testing.B) {
 			for i := 0; i < b.N; i++ {
 				err := db.Items(
 					nil,
-					1,
-					func(key, value []byte) (bool, error) {
+					bm.order,
+					func(_, _ []byte) (bool, error) {
 						itemsRead++
 						n++
 						if n >= bm.batchSize {
@@ -232,7 +236,8 @@ func BenchmarkDB_Items(b *testing.B) {
 				}
 			}
 
-			b.ReportMetric(float64(itemsRead)/b.Elapsed().Seconds(), "ops/sec")
+			b.ReportMetric(float64(b.N)/b.Elapsed().Seconds(), "ops/sec")
+			b.ReportMetric(float64(itemsRead)/b.Elapsed().Seconds(), "items/sec")
 		})
 
 		db.Close()

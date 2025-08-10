@@ -2,48 +2,43 @@ package sdb
 
 import (
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 )
 
 func initializeDatabase(db *DB) error {
+	db.metadataStore = newMetadataStore(db.fs, db.path)
+
 	// Check if the database already exists
-	fi, err := os.Stat(db.path)
+	fi, err := fs.Stat(db.fs, db.path)
 	if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("stat path: %w", err)
 	}
 
 	if os.IsNotExist(err) {
 		return createDatabaseStorage(db)
-	} else {
-		// Check permissions
-		if !fi.IsDir() {
-			return fmt.Errorf("path is not a directory")
-		} else if fi.Mode().Perm()&0700 != 0700 {
-			return fmt.Errorf("path permissions are not 0700")
-		}
 	}
 
-	// Load the metadata
-	db.metadata = metadata{}
-	err = db.metadata.Load(db.path)
-	if err != nil {
-		return fmt.Errorf("load metadata: %w", err)
+	// Check permissions (validate DB folder)
+	if !fi.IsDir() {
+		return fmt.Errorf("path is not a directory")
+	} else if fi.Mode().Perm()&0700 != 0700 {
+		return fmt.Errorf("path permissions are not 0700")
 	}
 
-	// Check the DB consistency and possibly recover from a corrupted
-	// state
-	return sanityCheck(db)
+	return loadDatabase(db)
 }
 
 func createDatabaseStorage(db *DB) error {
 	paths := []string{
 		db.path,
 		filepath.Join(db.path, dataDirectory),
+		filepath.Join(db.path, dataDirectory, sentinelDir),
 		filepath.Join(db.path, metadataDirectory),
 	}
 
-	if err := mkdirs(paths, defaultDirPermissions); err != nil {
+	if err := mkdirs(db.fs, paths, defaultDirPermissions); err != nil {
 		return fmt.Errorf("create directories: %w", err)
 	}
 
@@ -53,6 +48,24 @@ func createDatabaseStorage(db *DB) error {
 		return fmt.Errorf("sync: %w", err)
 	}
 	return nil
+}
+
+func loadDatabase(db *DB) error {
+	// Load the metadata
+	meta, err := db.metadataStore.Load()
+	if err != nil {
+		return fmt.Errorf("load metadata: %w", err)
+	}
+	db.metadata = meta
+
+	// Load the shards
+	if err = db.loadShards(); err != nil {
+		return fmt.Errorf("load shards: %w", err)
+	}
+
+	// Check the DB consistency and possibly recover from a corrupted
+	// state
+	return sanityCheck(db)
 }
 
 // Check version, totalBuckets and the generations. Recover from a corrupted
