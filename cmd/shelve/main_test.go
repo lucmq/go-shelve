@@ -242,6 +242,11 @@ func TestCLIItems(t *testing.T) {
 		expectOutputLines(t, items, []string{"a 1", "b 2"})
 	})
 
+	t.Run("items descending", func(t *testing.T) {
+		got := runCLI(t, "-path", path, "items", "-desc")
+		expectOutputLines(t, got, []string{"c 3", "b 2", "a 1"})
+	})
+
 	t.Run("invalid items - Shelve error", func(t *testing.T) {
 		err := handleItems(newFakeShelve(t), "items", []string{})
 		if !errors.Is(err, TestError) {
@@ -282,6 +287,11 @@ func TestCLIKeys(t *testing.T) {
 	t.Run("keys with end", func(t *testing.T) {
 		keys := runCLI(t, "-path", path, "keys", "-end", "c")
 		expectOutputLines(t, keys, []string{"a", "b"})
+	})
+
+	t.Run("keys descending", func(t *testing.T) {
+		got := runCLI(t, "-path", path, "keys", "-desc")
+		expectOutputLines(t, got, []string{"c", "b", "a"})
 	})
 
 	t.Run("invalid keys - Shelve error", func(t *testing.T) {

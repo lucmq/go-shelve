@@ -253,7 +253,11 @@ func (s *Shelf[K, V]) Delete(key K) error {
 // or not support iteration in reverse order.
 //
 // The default Shelf database (sdb.DB) yields items in deterministic lexical
-// order and honours the start key.
+// order and honours the start key. If the exact start key does not exist:
+//   - Asc: position at the first key > start. If all keys < start, the
+//     iterator is empty.
+//   - Desc: position at the last key < start. If all keys > start, the
+//     iterator is empty.
 func (s *Shelf[K, V]) Items(start *K, n, step int, fn Yield[K, V]) error {
 	dbFn := func(k, v []byte) (bool, error) {
 		var key K
